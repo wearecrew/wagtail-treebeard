@@ -20,7 +20,7 @@ from django.utils.text import capfirst
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 from django.views.generic import FormView, TemplateView
-from wagtail.admin.ui.tables import Column, Table
+from wagtail.admin.ui.tables import Column, Table, TitleColumn
 from wagtail.admin.views.generic.base import WagtailAdminTemplateMixin
 from wagtail.admin.widgets.button import Button, HeaderButton
 from wagtail.log_actions import log
@@ -67,6 +67,9 @@ class TreebeardViewMixin:
         if self.model is not None:
             context["model_opts"] = self.model._meta
         return context
+
+    def get_admin_object_title(self, instance: models.Model) -> str:
+        return admin_display_title(instance)
 
 
 class ConfirmAddPositionView(TreebeardViewMixin, WagtailAdminTemplateMixin, FormView):
@@ -204,6 +207,11 @@ class CreateView(TreebeardViewMixin, snippet_views.CreateView):
 
 
 class EditView(TreebeardViewMixin, snippet_views.EditView):
+    def get_page_subtitle(self) -> str:
+        if self.object is not None:
+            return self.get_admin_object_title(self.object)
+        return super().get_page_subtitle()
+
     def get_breadcrumbs_items(self) -> list[dict[str, Any]]:
         items = super().get_breadcrumbs_items()
         if self.object is None:
@@ -661,6 +669,9 @@ class ReorderRootEntryRowView(TreebeardViewMixin, View):
 
 
 class DeleteView(TreebeardViewMixin, snippet_views.DeleteView):
+    def get_page_subtitle(self) -> str:
+        return self.get_admin_object_title(self.object)
+
     def setup(self, request, *args: Any, **kwargs: Any) -> None:
         super().setup(request, *args, **kwargs)
         self.require_model()
@@ -781,8 +792,9 @@ class TreebeardIndexBrowseMixin:
         return self._append_index_parent_pk(super().get_index_url())
 
     def get_page_subtitle(self) -> str:
+        # Current node is the final breadcrumb label when drilling in (not a subtitle).
         if self.is_browse_mode and self.browse_parent is not None:
-            return admin_display_title(self.browse_parent)
+            return ""
         return super().get_page_subtitle()
 
     def get_breadcrumbs_items(self) -> list[dict[str, Any]]:
@@ -797,7 +809,12 @@ class TreebeardIndexBrowseMixin:
             }
             for node in self.browse_parent.get_ancestors()
         ]
-        return insert_breadcrumbs_before_last(items, explore_chain)
+        items = insert_breadcrumbs_before_last(items, explore_chain)
+        items[-1] = {
+            "url": "",
+            "label": admin_display_title(self.browse_parent),
+        }
+        return items
 
     def get_table_kwargs(self):
         kwargs = super().get_table_kwargs()
@@ -851,38 +868,65 @@ class IndexView(TreebeardIndexBrowseMixin, TreebeardViewMixin, snippet_views.Ind
     reorder_children_url_name: str | None = None
     reorder_root_entries_url_name: str | None = None
 
+    def _treebeard_title_column(self) -> TitleColumn:
+        return TitleColumn(
+            "title",
+            label=_("Title"),
+            accessor=admin_display_title,
+            get_url=lambda instance: self.get_edit_url(instance)
+            or self.get_inspect_url(instance),
+            get_title_id=lambda instance: f"snippet_{quote(instance.pk)}_title",
+        )
+
+    @cached_property
+    def list_display(self):
+        from wagtail.admin.ui.tables import UpdatedAtColumn
+
+        return [self._treebeard_title_column(), UpdatedAtColumn()]
+
     @cached_property
     def header_buttons(self):
+        if not self.is_browse_mode:
+            return super().header_buttons
+
+        buttons: list[HeaderButton] = []
         if (
-            self.is_browse_mode
-            and self.browse_parent is None
+            self.browse_parent is None
             and self.reorder_root_entries_url_name
             and self.permission_policy.user_can_reorder_roots(self.request.user)
         ):
-            return [
+            buttons.append(
                 HeaderButton(
                     _("Reorder root entries"),
                     url=reverse(self.reorder_root_entries_url_name),
                     icon_name="list-ul",
                 )
-            ]
-        if (
-            self.is_browse_mode
-            and self.browse_parent is not None
-            and self.add_child_url_name
-            and self.browse_parent.permissions_for_user(
-                self.request.user
-            ).can_add_child()
-        ):
-            return [
-                HeaderButton(
-                    _("Add child"),
-                    url=reverse(
-                        self.add_child_url_name, args=[quote(self.browse_parent.pk)]
-                    ),
-                    icon_name="plus",
+            )
+        elif self.browse_parent is not None:
+            perms = self.browse_parent.permissions_for_user(self.request.user)
+            if self.reorder_children_url_name and perms.can_reorder_children():
+                buttons.append(
+                    HeaderButton(
+                        _("Reorder"),
+                        url=reverse(
+                            self.reorder_children_url_name,
+                            args=[quote(self.browse_parent.pk)],
+                        ),
+                        icon_name="list-ul",
+                    )
                 )
-            ]
+            if self.add_child_url_name and perms.can_add_child():
+                buttons.append(
+                    HeaderButton(
+                        _("Add child"),
+                        url=reverse(
+                            self.add_child_url_name, args=[quote(self.browse_parent.pk)]
+                        ),
+                        icon_name="plus",
+                    )
+                )
+        if buttons:
+            return buttons
         return super().header_buttons
 
     @cached_property
@@ -896,7 +940,7 @@ class IndexView(TreebeardIndexBrowseMixin, TreebeardViewMixin, snippet_views.Ind
     def columns(self):
         if self.is_browse_mode:
             return [
-                self._get_title_column("get_admin_display_title"),
+                self._treebeard_title_column(),
                 WagtailTreebeardExploreNavigateColumn(
                     "navigate",
                     label="",

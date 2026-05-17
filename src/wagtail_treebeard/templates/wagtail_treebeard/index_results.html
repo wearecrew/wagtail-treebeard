@@ -1,21 +1,2 @@
 {% extends "wagtailadmin/generic/index_results.html" %}
-{% load i18n %}
-
-{% block before_results %}
-    {% if is_browse_mode %}
-        <nav class="listing-filter nice-padding" aria-label="{% trans 'Tree location' %}">
-            <p class="w-help-text">
-                <a href="{{ browse_index_url }}">{% trans "Root" %}</a>
-                {% for link in browse_ancestor_links %}
-                    <span aria-hidden="true"> › </span>
-                    <a href="{{ link.url }}">{{ link.label }}</a>
-                {% endfor %}
-                {% if browse_parent %}
-                    <span aria-hidden="true"> › </span>
-                    <strong>{{ browse_parent }}</strong>
-                {% endif %}
-            </p>
-        </nav>
-    {% endif %}
-    {{ block.super }}
-{% endblock %}
+{# Tree location is shown in the slim header breadcrumbs (see ``TreebeardIndexBrowseMixin.get_breadcrumbs_items``). #}

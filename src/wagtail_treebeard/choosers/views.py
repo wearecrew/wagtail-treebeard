@@ -203,6 +203,11 @@ class ChooseResultsMixin:
             {
                 "is_browse_mode": self.is_browse_mode,
                 "browse_parent": self.browse_parent,
+                "browse_parent_title": (
+                    admin_display_title(self.browse_parent)
+                    if self.browse_parent is not None
+                    else ""
+                ),
                 "browse_ancestors": browse_ancestors,
                 "browse_ancestor_links": [
                     {

@@ -135,6 +135,8 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Index child")
+        self.assertContains(response, "Index parent")
+        self.assertNotContains(response, 'aria-label="Tree location"')
 
     def test_index_browse_explore_link_uses_table_base_url(self):
         root = TreeNode.add_root(name="Browse root")
@@ -146,6 +148,8 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         )
         self.assertContains(response, explore_url)
         self.assertContains(response, "Explore children of")
+        self.assertContains(response, "Title")
+        self.assertNotContains(response, "Get admin display title")
 
     def test_index_search_lists_matching_nodes(self):
         TreeNode.add_root(name="Findable")
@@ -250,6 +254,20 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         self.assertContains(response, snippet_url(TreeNode, "reorder_root_entries"))
         self.assertContains(response, "Reorder root entries")
 
+    def test_index_shows_reorder_header_when_browsing_parent(self):
+        parent = TreeNode.add_root(name="Reorder header parent")
+        parent.add_child(name="Child one")
+        parent.add_child(name="Child two")
+        url = (
+            f"{snippet_url(TreeNode, 'list')}?{INDEX_PARENT_PK_QUERY_PARAM}={parent.pk}"
+        )
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, snippet_url(TreeNode, "reorder_children", parent.pk)
+        )
+        self.assertContains(response, "Reorder")
+
     def test_reorder_root_entry_row_invalid_non_root(self):
         parent = TreeNode.add_root(name="Parent")
         child = parent.add_child(name="Child")
@@ -267,6 +285,19 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         response = self.client.get(snippet_url(TreeNode, "edit", child.pk))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Crumb root")
+
+    def test_edit_view_uses_admin_display_title_for_header(self):
+        root = TreeNode.add_root(name="Public name")
+        original = TreeNode.get_admin_display_title
+
+        def editor_title(self):
+            return f"Editor: {self.name}"
+
+        TreeNode.get_admin_display_title = editor_title  # type: ignore[method-assign]
+        self.addCleanup(lambda: setattr(TreeNode, "get_admin_display_title", original))
+        response = self.client.get(snippet_url(TreeNode, "edit", root.pk))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Editor: Public name")
 
     def test_delete_leaf_post(self):
         node = TreeNode.add_root(name="Delete me")

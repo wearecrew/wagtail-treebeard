@@ -10,5 +10,10 @@
         #listing-results table.listing tbody tr td.title .title-wrapper {
             padding-inline-start: var(--tree-indent, 0rem);
         }
+
+        {# Browse mode: tree path is in the slim header; keep the listing flush below it. #}
+        #listing-results table.listing {
+            margin-block-start: 0;
+        }
     </style>
 {% endblock %}
