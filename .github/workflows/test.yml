@@ -1,4 +1,4 @@
-name: Test & Lint
+name: Test
 
 on:
   push:
@@ -24,24 +24,9 @@ env:
   PYTHON_LATEST: "3.12"
 
 jobs:
-  lint:
-    name: Pre-commit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version-file: .python-version
-
-      - uses: pre-commit/action@v3.0.1
-
   test:
     name: Python ${{ matrix.python }} ${{ matrix.label }}
     runs-on: ubuntu-latest
-    needs: lint
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false

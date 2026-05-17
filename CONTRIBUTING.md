@@ -49,12 +49,10 @@ tox -e py3.13-django5.2-wagtail74
 
 ## Continuous integration
 
-On every push and pull request, GitHub Actions:
+On every push and pull request, GitHub Actions runs two workflows in parallel:
 
-- runs **pre-commit** (Ruff and standard hooks);
-- runs **tox** across supported Python / Django / Wagtail combinations;
-- runs **Wagtail main** (`wagtailmain`) as an allowed-to-fail check on PRs;
-- publishes a combined **coverage** report.
+- **Lint** — pre-commit (Ruff and standard hooks);
+- **Test** — tox across supported Python / Django / Wagtail combinations, optional **Wagtail main** (`wagtailmain`, allowed to fail on PRs), and a combined **coverage** report.
 
 A **nightly** workflow (Mondays 03:00 UTC) tests against [Wagtail `main`](https://github.com/wagtail/wagtail); configure `SLACK_WEBHOOK_URL` in repository secrets for failure notifications.
 

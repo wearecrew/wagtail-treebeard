@@ -1,6 +1,7 @@
 # wagtail-treebeard
 
-[![Build status](https://github.com/torchbox/wagtail-treebeard/actions/workflows/test.yml/badge.svg)](https://github.com/torchbox/wagtail-treebeard/actions/workflows/test.yml)
+[![Lint](https://github.com/torchbox/wagtail-treebeard/actions/workflows/lint.yml/badge.svg)](https://github.com/torchbox/wagtail-treebeard/actions/workflows/lint.yml)
+[![Test](https://github.com/torchbox/wagtail-treebeard/actions/workflows/test.yml/badge.svg)](https://github.com/torchbox/wagtail-treebeard/actions/workflows/test.yml)
 [![Nightly Wagtail main](https://github.com/torchbox/wagtail-treebeard/actions/workflows/nightly.yml/badge.svg)](https://github.com/torchbox/wagtail-treebeard/actions/workflows/nightly.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
