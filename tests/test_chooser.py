@@ -17,6 +17,13 @@ def chooser_results_url(model: type[TreeNode] = TreeNode) -> str:
     return reverse(chooser_viewset(model).get_url_name("choose_results"))
 
 
+def chooser_explore_results_url(model: type[TreeNode], parent_pk: object) -> str:
+    return reverse(
+        chooser_viewset(model).get_url_name("choose_explore_results"),
+        args=[parent_pk],
+    )
+
+
 def chooser_choose_url(model: type[TreeNode] = TreeNode) -> str:
     return reverse(chooser_viewset(model).get_url_name("choose"))
 
@@ -114,10 +121,7 @@ class ChooserBrowseAndSearchTests(WagtailTestUtils, TestCase):
         self.client.force_login(self.superuser)
 
     def test_browse_children_with_parent_pk(self):
-        response = self.client.get(
-            chooser_results_url(),
-            {"parent_pk": self.root.pk},
-        )
+        response = self.client.get(chooser_explore_results_url(TreeNode, self.root.pk))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Browse child")
 
@@ -133,11 +137,10 @@ class ChooserBrowseAndSearchTests(WagtailTestUtils, TestCase):
 
     def test_parent_for_move_browse_excludes_moved_node(self):
         response = self.client.get(
-            chooser_results_url(),
+            chooser_explore_results_url(TreeNode, self.child.pk),
             {
                 "chooser_mode": ChooserMode.PARENT_FOR_MOVE,
                 "move_instance_pk": self.grandchild.pk,
-                "parent_pk": self.child.pk,
             },
         )
         self.assertEqual(response.status_code, 200)
@@ -197,8 +200,9 @@ class ChooserViewIntegrationTests(WagtailTestUtils, TestCase):
     def test_browse_navigate_link_for_node_with_children(self):
         response = self.client.get(chooser_results_url())
         self.assertEqual(response.status_code, 200)
-        navigate_url = f"{chooser_results_url()}?parent_pk={self.root.pk}"
-        self.assertContains(response, navigate_url)
+        self.assertContains(
+            response, chooser_explore_results_url(TreeNode, self.root.pk)
+        )
         self.assertContains(response, f'data-parent-pk="{self.root.pk}"')
 
     def test_parent_for_create_lists_choose_action_for_valid_parent(self):

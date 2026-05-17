@@ -16,15 +16,13 @@
     if (!form) {
       return;
     }
-    event.preventDefault();
-    let parentInput = form.querySelector('input[name="parent_pk"]');
-    if (!parentInput) {
-      parentInput = document.createElement("input");
-      parentInput.type = "hidden";
-      parentInput.name = "parent_pk";
-      form.appendChild(parentInput);
+    const url = link.getAttribute("href");
+    if (!url) {
+      return;
     }
-    parentInput.value = link.dataset.parentPk || "";
+    event.preventDefault();
+    form.querySelector('input[name="parent_pk"]')?.remove();
+    form.action = url;
     form.requestSubmit();
   }
 

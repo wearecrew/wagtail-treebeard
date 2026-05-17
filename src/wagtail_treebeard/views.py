@@ -35,12 +35,12 @@ from wagtail_treebeard.forms import (
 from wagtail_treebeard.utils import (
     INDEX_PARENT_PK_QUERY_PARAM,
     admin_display_title,
-    index_url_with_parent_pk,
+    reverse_index_explore_url,
     insert_breadcrumbs_before_last,
     move_mp_child_to_position,
     move_mp_root_to_position,
     mp_node_breadcrumb_chain,
-    mp_node_edit_breadcrumb_items,
+    mp_node_explore_breadcrumb_items,
 )
 
 
@@ -144,7 +144,7 @@ class CreateView(TreebeardViewMixin, snippet_views.CreateView):
     """
     Create under an MP parent (``parent_pk`` in URL) or as a root (``add/root/`` with no parent).
 
-    When creating under a parent, breadcrumbs show the full ancestor chain (each linking to edit).
+    When creating under a parent, breadcrumbs show the full ancestor chain (each linking to explore).
     """
 
     parent: models.Model | None = None
@@ -155,13 +155,15 @@ class CreateView(TreebeardViewMixin, snippet_views.CreateView):
             return form_class
         return self.require_model().snippet_viewset.get_form_class()
 
+    index_explore_url_name: str | None = None
+
     def get_breadcrumbs_items(self) -> list[dict[str, Any]]:
         items = super().get_breadcrumbs_items()
         if self.parent is None:
             return items
-        extra = mp_node_edit_breadcrumb_items(
+        extra = mp_node_explore_breadcrumb_items(
             mp_node_breadcrumb_chain(self.parent),
-            edit_url_name=getattr(self, "edit_url_name", None),
+            explore_url_name=self.index_explore_url_name,
         )
         return insert_breadcrumbs_before_last(items, extra)
 
@@ -207,6 +209,8 @@ class CreateView(TreebeardViewMixin, snippet_views.CreateView):
 
 
 class EditView(TreebeardViewMixin, snippet_views.EditView):
+    index_explore_url_name: str | None = None
+
     def get_page_subtitle(self) -> str:
         if self.object is not None:
             return self.get_admin_object_title(self.object)
@@ -216,9 +220,9 @@ class EditView(TreebeardViewMixin, snippet_views.EditView):
         items = super().get_breadcrumbs_items()
         if self.object is None:
             return items
-        extra = mp_node_edit_breadcrumb_items(
+        extra = mp_node_explore_breadcrumb_items(
             list(self.object.get_ancestors()),
-            edit_url_name=getattr(self, "edit_url_name", None),
+            explore_url_name=self.index_explore_url_name,
         )
         return insert_breadcrumbs_before_last(items, extra)
 
@@ -229,6 +233,7 @@ class MoveView(TreebeardViewMixin, WagtailAdminTemplateMixin, FormView):
     page_title = _("Move")
 
     index_url_name: str | None = None
+    index_explore_url_name: str | None = None
     header_icon = "arrow-right"
     breadcrumbs_items: list | None = None
     user_can_move_to_root: bool = False
@@ -364,9 +369,9 @@ class MoveView(TreebeardViewMixin, WagtailAdminTemplateMixin, FormView):
             }
         )
         items.extend(
-            mp_node_edit_breadcrumb_items(
+            mp_node_explore_breadcrumb_items(
                 mp_node_breadcrumb_chain(object_to_move),
-                edit_url_name=getattr(self, "edit_url_name", None),
+                explore_url_name=self.index_explore_url_name,
             )
         )
         items.append({"url": "", "label": str(self.get_page_title())})
@@ -386,6 +391,7 @@ class ReorderChildrenView(TreebeardViewMixin, WagtailAdminTemplateMixin, Templat
 
     reorder_children_row_url_name: str | None = None
     index_url_name: str | None = None
+    index_explore_url_name: str | None = None
     header_icon = "list-ul"
     breadcrumbs_items: list | None = None
     parent: models.Model | None = None
@@ -411,12 +417,12 @@ class ReorderChildrenView(TreebeardViewMixin, WagtailAdminTemplateMixin, Templat
             else:
                 message = _("There are not enough child nodes to reorder.")
             messages.error(request, message)
-            if self.index_url_name is None:
+            if self.index_explore_url_name is None:
                 raise ImproperlyConfigured(
-                    f"{self.__class__.__name__} is missing index_url_name."
+                    f"{self.__class__.__name__} is missing index_explore_url_name."
                 )
             return redirect(
-                index_url_with_parent_pk(reverse(self.index_url_name), parent.pk)
+                reverse_index_explore_url(self.index_explore_url_name, parent.pk)
             )
         if not perms.can_reorder_children():
             raise PermissionDenied
@@ -435,20 +441,23 @@ class ReorderChildrenView(TreebeardViewMixin, WagtailAdminTemplateMixin, Templat
             raise ImproperlyConfigured(
                 f"{self.__class__.__name__} must be registered via WagtailTreebeardSnippetViewSet."
             )
-        if self.index_url_name is None or self.reorder_children_row_url_name is None:
+        if (
+            self.index_explore_url_name is None
+            or self.reorder_children_row_url_name is None
+        ):
             raise ImproperlyConfigured(
                 f"{self.__class__.__name__} is missing index or reorder URL names."
             )
         return (
             parent,
             self.require_model(),
-            self.index_url_name,
+            self.index_explore_url_name,
             self.reorder_children_row_url_name,
         )
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        parent, _model, index_url_name, reorder_children_row_url_name = (
+        parent, _model, index_explore_url_name, reorder_children_row_url_name = (
             self._registered_reorder_state()
         )
         children = list(
@@ -457,7 +466,9 @@ class ReorderChildrenView(TreebeardViewMixin, WagtailAdminTemplateMixin, Templat
             )
         )
         context["parent"] = parent
-        context["cancel_url"] = reverse(index_url_name)
+        context["cancel_url"] = reverse_index_explore_url(
+            index_explore_url_name, parent.pk
+        )
         context["children_rows"] = [
             {"pk_quoted": quote(c.pk), "label": admin_display_title(c)}
             for c in children
@@ -470,20 +481,24 @@ class ReorderChildrenView(TreebeardViewMixin, WagtailAdminTemplateMixin, Templat
         return context
 
     def get_breadcrumbs_items(self) -> list[dict[str, str]]:
-        parent, model, index_url_name, _reorder_children_row_url_name = (
+        parent, model, index_explore_url_name, _reorder_children_row_url_name = (
             self._registered_reorder_state()
         )
         items: list[dict[str, str]] = list(self.breadcrumbs_items)
+        if self.index_url_name is None:
+            raise ImproperlyConfigured(
+                f"{self.__class__.__name__} is missing index_url_name."
+            )
         items.append(
             {
-                "url": reverse(index_url_name),
+                "url": reverse(self.index_url_name),
                 "label": capfirst(model._meta.verbose_name_plural),
             }
         )
         items.extend(
-            mp_node_edit_breadcrumb_items(
+            mp_node_explore_breadcrumb_items(
                 mp_node_breadcrumb_chain(parent),
-                edit_url_name=getattr(self, "edit_url_name", None),
+                explore_url_name=index_explore_url_name,
             )
         )
         items.append({"url": "", "label": str(self.get_page_title())})
@@ -719,10 +734,15 @@ class WagtailTreebeardExploreNavigateColumn(Column):
     cell_template_name = "wagtail_treebeard/cells/explore_navigate_cell.html"
 
     def __init__(
-        self, *args: Any, add_child_url_name: str | None = None, **kwargs: Any
+        self,
+        *args: Any,
+        add_child_url_name: str | None = None,
+        index_explore_url_name: str | None = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.add_child_url_name = add_child_url_name
+        self.index_explore_url_name = index_explore_url_name
 
     def get_cell_context_data(self, instance, parent_context):
         context = super().get_cell_context_data(instance, parent_context)
@@ -730,13 +750,10 @@ class WagtailTreebeardExploreNavigateColumn(Column):
         perms = instance.permissions_for_user(request.user)
         context["node_perms"] = perms
         context["admin_title"] = admin_display_title(instance)
-        if instance.numchild > 0:
-            table = parent_context["table"]
-            base_url = getattr(table, "base_url", None)
-            if base_url:
-                context["explore_url"] = index_url_with_parent_pk(
-                    base_url.split("?")[0], instance.pk
-                )
+        if instance.numchild > 0 and self.index_explore_url_name:
+            context["explore_url"] = reverse_index_explore_url(
+                self.index_explore_url_name, instance.pk
+            )
         if self.add_child_url_name and perms.can_add_child():
             context["add_child_url"] = reverse(
                 self.add_child_url_name, args=[quote(instance.pk)]
@@ -746,21 +763,33 @@ class WagtailTreebeardExploreNavigateColumn(Column):
 
 class TreebeardIndexBrowseMixin:
     """
-    Explorer-style snippet index: list direct children of ``parent_pk`` (roots when omitted).
+    Explorer-style snippet index: list direct children of a parent (roots at ``list``).
 
-    Search/filter uses the full queryset (optionally scoped to the current parent's subtree).
+    Browse uses ``explore/<parent_pk>/`` URLs; search/filter may scope to the current subtree.
     """
 
     browse_parent: models.Model | None = None
+    index_explore_url_name: str | None = None
+    index_explore_results_url_name: str | None = None
 
     def setup(self, request, *args: Any, **kwargs: Any) -> None:
         super().setup(request, *args, **kwargs)
         self.browse_parent = None
-        parent_pk = request.GET.get(INDEX_PARENT_PK_QUERY_PARAM)
+        parent_pk = kwargs.get("parent_pk")
         if parent_pk and self.model is not None:
             self.browse_parent = get_object_or_404(
                 self.model, pk=unquote(str(parent_pk))
             )
+
+    def dispatch(self, request, *args: Any, **kwargs: Any):
+        legacy_pk = request.GET.get(INDEX_PARENT_PK_QUERY_PARAM)
+        if legacy_pk and "parent_pk" not in kwargs and self.index_explore_url_name:
+            return redirect(
+                reverse_index_explore_url(
+                    self.index_explore_url_name, unquote(str(legacy_pk))
+                )
+            )
+        return super().dispatch(request, *args, **kwargs)
 
     @cached_property
     def is_browse_mode(self) -> bool:
@@ -781,15 +810,20 @@ class TreebeardIndexBrowseMixin:
             queryset = queryset.filter(path__startswith=self.browse_parent.path)
         return queryset
 
-    def _append_index_parent_pk(self, url: str) -> str:
-        parent_pk = self.request.GET.get(INDEX_PARENT_PK_QUERY_PARAM)
-        return index_url_with_parent_pk(url, parent_pk)
-
     def get_index_results_url(self):
-        return self._append_index_parent_pk(super().get_index_results_url())
+        if self.browse_parent is not None and self.index_explore_results_url_name:
+            return reverse(
+                self.index_explore_results_url_name,
+                args=[quote(self.browse_parent.pk)],
+            )
+        return super().get_index_results_url()
 
     def get_index_url(self):
-        return self._append_index_parent_pk(super().get_index_url())
+        if self.browse_parent is not None and self.index_explore_url_name:
+            return reverse_index_explore_url(
+                self.index_explore_url_name, self.browse_parent.pk
+            )
+        return super().get_index_url()
 
     def get_page_subtitle(self) -> str:
         # Current node is the final breadcrumb label when drilling in (not a subtitle).
@@ -799,21 +833,39 @@ class TreebeardIndexBrowseMixin:
 
     def get_breadcrumbs_items(self) -> list[dict[str, Any]]:
         items = super().get_breadcrumbs_items()
-        if not self.is_browse_mode or self.browse_parent is None or self.model is None:
+        if (
+            not self.is_browse_mode
+            or self.browse_parent is None
+            or self.model is None
+            or self.index_explore_url_name is None
+            or self.index_url_name is None
+        ):
             return items
-        index_url = self.get_index_url().split("?")[0]
-        explore_chain = [
-            {
-                "url": index_url_with_parent_pk(index_url, node.pk),
-                "label": admin_display_title(node),
-            }
-            for node in self.browse_parent.get_ancestors()
-        ]
-        items = insert_breadcrumbs_before_last(items, explore_chain)
-        items[-1] = {
-            "url": "",
-            "label": admin_display_title(self.browse_parent),
-        }
+        index_label = capfirst(self.model._meta.verbose_name_plural)
+        if items and not items[-1].get("url"):
+            index_label = items[-1].get("label", index_label)
+            items = items[:-1]
+        items.extend(
+            [
+                {
+                    "url": reverse(self.index_url_name),
+                    "label": index_label,
+                },
+                *[
+                    {
+                        "url": reverse_index_explore_url(
+                            self.index_explore_url_name, node.pk
+                        ),
+                        "label": admin_display_title(node),
+                    }
+                    for node in self.browse_parent.get_ancestors()
+                ],
+                {
+                    "url": "",
+                    "label": admin_display_title(self.browse_parent),
+                },
+            ]
+        )
         return items
 
     def get_table_kwargs(self):
@@ -826,7 +878,10 @@ class TreebeardIndexBrowseMixin:
 
     def get_context_data(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(*args, **kwargs)
-        index_url = context.get("index_url", self.get_index_url()).split("?")[0]
+        if self.index_url_name:
+            browse_index_url = reverse(self.index_url_name)
+        else:
+            browse_index_url = self.get_index_url()
         browse_ancestors = (
             list(self.browse_parent.get_ancestors())
             if self.browse_parent is not None
@@ -839,12 +894,16 @@ class TreebeardIndexBrowseMixin:
                 "browse_ancestor_links": [
                     {
                         "label": admin_display_title(node),
-                        "url": index_url_with_parent_pk(index_url, node.pk),
+                        "url": reverse_index_explore_url(
+                            self.index_explore_url_name, node.pk
+                        ),
                         "pk": node.pk,
                     }
                     for node in browse_ancestors
-                ],
-                "browse_index_url": index_url,
+                ]
+                if self.index_explore_url_name
+                else [],
+                "browse_index_url": browse_index_url,
                 "add_child_url_name": self.add_child_url_name,
             }
         )
@@ -946,6 +1005,7 @@ class IndexView(TreebeardIndexBrowseMixin, TreebeardViewMixin, snippet_views.Ind
                     label="",
                     width="10%",
                     add_child_url_name=self.add_child_url_name,
+                    index_explore_url_name=self.index_explore_url_name,
                 ),
             ]
         # Skip bulk-actions checkbox; bulk delete would bypass per-node delete rules.

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.contrib.auth.models import AbstractBaseUser
+from django.urls import path
 from wagtail.snippets.views.chooser import (
     SnippetChooserViewSet,
     SnippetChosenMultipleView,
@@ -24,7 +25,22 @@ class ChooserViewSet(SnippetChooserViewSet):
     preserve_url_parameters = list(PRESERVED_CHOOSER_PARAMS)
 
     def get_common_view_kwargs(self, **kwargs: Any) -> dict[str, Any]:
-        return super().get_common_view_kwargs(ordering=["path"], **kwargs)
+        return {
+            **super().get_common_view_kwargs(ordering=["path"], **kwargs),
+            "choose_explore_results_url_name": self.get_url_name(
+                "choose_explore_results"
+            ),
+        }
+
+    def get_urlpatterns(self):
+        conv = self.model.snippet_viewset.pk_path_converter
+        return super().get_urlpatterns() + [
+            path(
+                f"explore/<{conv}:parent_pk>/results/",
+                self.choose_results_view,
+                name="choose_explore_results",
+            ),
+        ]
 
     def can_choose_root_for_user(self, user: AbstractBaseUser) -> bool:
         return self.model.permission_policy.user_can_add_root(user)

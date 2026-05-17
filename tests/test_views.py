@@ -10,7 +10,10 @@ from wagtail.test.utils import WagtailTestUtils
 
 from testapp.models import PolicyRestrictedNode, TesterLockedNode, TreeNode
 from wagtail_treebeard.permission_policy import TreebeardModelPermissionPolicy
-from wagtail_treebeard.utils import INDEX_PARENT_PK_QUERY_PARAM
+from wagtail_treebeard.utils import (
+    INDEX_PARENT_PK_QUERY_PARAM,
+    reverse_index_explore_url,
+)
 
 
 POLICY = TreebeardModelPermissionPolicy
@@ -18,6 +21,10 @@ POLICY = TreebeardModelPermissionPolicy
 
 def snippet_url(model: type, view_name: str, *args: object) -> str:
     return reverse(model.snippet_viewset.get_url_name(view_name), args=args)
+
+
+def snippet_explore_url(model: type, parent_pk: object) -> str:
+    return snippet_url(model, "explore", parent_pk)
 
 
 def assert_admin_permission_denied(test_case: TestCase, response) -> None:
@@ -129,10 +136,7 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
     def test_index_browse_children_with_parent_pk(self):
         parent = TreeNode.add_root(name="Index parent")
         parent.add_child(name="Index child")
-        url = (
-            f"{snippet_url(TreeNode, 'list')}?{INDEX_PARENT_PK_QUERY_PARAM}={parent.pk}"
-        )
-        response = self.client.get(url)
+        response = self.client.get(snippet_explore_url(TreeNode, parent.pk))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Index child")
         self.assertContains(response, "Index parent")
@@ -143,10 +147,7 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         root.add_child(name="Browse child")
         response = self.client.get(snippet_url(TreeNode, "list"))
         self.assertEqual(response.status_code, 200)
-        explore_url = (
-            f"{snippet_url(TreeNode, 'list')}?{INDEX_PARENT_PK_QUERY_PARAM}={root.pk}"
-        )
-        self.assertContains(response, explore_url)
+        self.assertContains(response, snippet_explore_url(TreeNode, root.pk))
         self.assertContains(response, "Explore children of")
         self.assertContains(response, "Title")
         self.assertNotContains(response, "Get admin display title")
@@ -158,12 +159,14 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Findable")
 
-    def test_index_shows_move_action_for_movable_child(self):
-        root = TreeNode.add_root(name="Move root")
-        child = root.add_child(name="Movable")
-        url = f"{snippet_url(TreeNode, 'list')}?{INDEX_PARENT_PK_QUERY_PARAM}={root.pk}"
-        response = self.client.get(url)
-        self.assertContains(response, snippet_url(TreeNode, "move", child.pk))
+    def test_index_explore_breadcrumbs_include_root_list_link(self):
+        root = TreeNode.add_root(name="Crumb root")
+        child = root.add_child(name="Crumb child")
+        response = self.client.get(snippet_explore_url(TreeNode, child.pk))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, snippet_url(TreeNode, "list"))
+        self.assertContains(response, snippet_explore_url(TreeNode, root.pk))
+        self.assertContains(response, "Crumb child")
 
     def test_move_get_shows_form(self):
         root = TreeNode.add_root(name="Root")
@@ -217,7 +220,7 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
             response["Location"],
-            f"{snippet_url(TesterLockedNode, 'list')}?{INDEX_PARENT_PK_QUERY_PARAM}={parent.pk}",
+            snippet_explore_url(TesterLockedNode, parent.pk),
         )
 
     def test_reorder_children_lists_all_children(self):
@@ -258,10 +261,7 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         parent = TreeNode.add_root(name="Reorder header parent")
         parent.add_child(name="Child one")
         parent.add_child(name="Child two")
-        url = (
-            f"{snippet_url(TreeNode, 'list')}?{INDEX_PARENT_PK_QUERY_PARAM}={parent.pk}"
-        )
-        response = self.client.get(url)
+        response = self.client.get(snippet_explore_url(TreeNode, parent.pk))
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response, snippet_url(TreeNode, "reorder_children", parent.pk)
@@ -285,6 +285,20 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         response = self.client.get(snippet_url(TreeNode, "edit", child.pk))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Crumb root")
+        self.assertContains(response, snippet_explore_url(TreeNode, root.pk))
+
+    def test_legacy_parent_pk_query_redirects_to_explore_url(self):
+        parent = TreeNode.add_root(name="Legacy parent")
+        response = self.client.get(
+            f"{snippet_url(TreeNode, 'list')}?{INDEX_PARENT_PK_QUERY_PARAM}={parent.pk}"
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            reverse_index_explore_url(
+                TreeNode.snippet_viewset.get_url_name("explore"), parent.pk
+            ),
+        )
 
     def test_edit_view_uses_admin_display_title_for_header(self):
         root = TreeNode.add_root(name="Public name")

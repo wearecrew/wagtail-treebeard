@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import urlencode
 
 from django.contrib.admin.utils import quote
 from django.core.exceptions import ValidationError
@@ -14,16 +13,13 @@ from treebeard.exceptions import PathOverflow
 from treebeard.mp_tree import MP_Node
 
 
+# Legacy query param; index views redirect to :func:`reverse_index_explore_url`.
 INDEX_PARENT_PK_QUERY_PARAM = "parent_pk"
 
 
-def index_url_with_parent_pk(url: str, parent_pk: Any | None) -> str:
-    """Append ``parent_pk`` for tree index / results URLs (explorer-style navigation)."""
-    if parent_pk is None:
-        return url
-    query = urlencode({INDEX_PARENT_PK_QUERY_PARAM: parent_pk})
-    separator = "&" if "?" in url else "?"
-    return f"{url}{separator}{query}"
+def reverse_index_explore_url(explore_url_name: str, parent_pk: Any) -> str:
+    """URL for browsing a node's children in the snippet index (path-based explorer)."""
+    return reverse(explore_url_name, args=[quote(parent_pk)])
 
 
 def model_supports_manual_ordering(model: type[MP_Node]) -> bool:
@@ -59,6 +55,22 @@ def mp_node_edit_breadcrumb_items(
     return [
         {
             "url": reverse(edit_url_name, args=(quote(node.pk),)),
+            "label": admin_display_title(node),
+        }
+        for node in chain
+    ]
+
+
+def mp_node_explore_breadcrumb_items(
+    chain: list[models.Model],
+    *,
+    explore_url_name: str | None,
+) -> list[dict[str, Any]]:
+    if not explore_url_name:
+        return []
+    return [
+        {
+            "url": reverse_index_explore_url(explore_url_name, node.pk),
             "label": admin_display_title(node),
         }
         for node in chain

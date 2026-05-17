@@ -106,6 +106,8 @@ class WagtailTreebeardSnippetViewSet(snippet_views.SnippetViewSet):
             "add_root_url_name": self.get_url_name("add_root"),
             "add_child_url_name": self.get_url_name("add_child"),
             "move_url_name": self.get_url_name("move"),
+            "index_explore_url_name": self.get_url_name("explore"),
+            "index_explore_results_url_name": self.get_url_name("explore_results"),
         }
         if model_supports_manual_ordering(self.model):
             common["reorder_children_url_name"] = self.get_url_name("reorder_children")
@@ -176,6 +178,24 @@ class WagtailTreebeardSnippetViewSet(snippet_views.SnippetViewSet):
     def get_urlpatterns(self):
         conv = self.pk_path_converter
         patterns = list(super().get_urlpatterns())
+        explore_routes = [
+            path(
+                f"explore/<{conv}:parent_pk>/results/",
+                self.index_results_view,
+                name="explore_results",
+            ),
+            path(
+                f"explore/<{conv}:parent_pk>/",
+                self.index_view,
+                name="explore",
+            ),
+        ]
+        for i, route in enumerate(patterns):
+            if getattr(route, "name", None) == "list_results":
+                patterns[i + 1 : i + 1] = explore_routes
+                break
+        else:
+            patterns = explore_routes + patterns
         for i, route in enumerate(patterns):
             if getattr(route, "name", None) == "add":
                 patterns[i] = path("add/", self.confirm_add_position_view, name="add")

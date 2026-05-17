@@ -36,6 +36,20 @@ class ChooseResultsMixin:
     results_template_name = "wagtail_treebeard/chooser/results.html"
     preserve_url_parameters = list(PRESERVED_CHOOSER_PARAMS)
     browse_parent: models.Model | None = None
+    choose_explore_results_url_name: str | None = None
+
+    def setup(self, request, *args: Any, **kwargs: Any) -> None:
+        super().setup(request, *args, **kwargs)
+        self.browse_parent = None
+        parent_pk = kwargs.get("parent_pk")
+        if parent_pk:
+            self.browse_parent = get_object_or_404(
+                self.require_model_class(), pk=unquote(str(parent_pk))
+            )
+
+    def get(self, request, *args: Any, **kwargs: Any):
+        # ``explore/<parent_pk>/results/`` passes parent_pk; stock chooser ``get()`` does not.
+        return super().get(request)
 
     def can_create(self) -> bool:
         return False
@@ -84,14 +98,9 @@ class ChooseResultsMixin:
     def get_browse_queryset(self) -> models.QuerySet:
         """Unfiltered tree slice for the current browse level (before per-row permission flags)."""
         model_class = self.require_model_class()
-        parent_pk = self.request.GET.get("parent_pk")
-        if parent_pk:
-            self.browse_parent = get_object_or_404(
-                model_class, pk=unquote(str(parent_pk))
-            )
+        if self.browse_parent is not None:
             queryset = self.browse_parent.get_children()
         else:
-            self.browse_parent = None
             queryset = model_class._default_manager.filter(depth=1)
         if self.get_chooser_mode() is ChooserMode.PARENT_FOR_MOVE:
             move_instance = self.get_move_instance()
@@ -172,14 +181,19 @@ class ChooseResultsMixin:
     def get_browse_results_url(self, *, parent_pk: int | str | None = None) -> str:
         params: dict[str, str] = {}
         for param in PRESERVED_CHOOSER_PARAMS:
-            if param == "parent_pk":
-                continue
             value = self.request.GET.get(param)
             if value is not None:
                 params[param] = value
         if parent_pk is not None:
-            params["parent_pk"] = str(parent_pk)
-        base = reverse(self.results_url_name)
+            if not self.choose_explore_results_url_name:
+                raise ImproperlyConfigured(
+                    f"{self.__class__.__name__} is missing choose_explore_results_url_name."
+                )
+            base = reverse(
+                self.choose_explore_results_url_name, args=[quote(parent_pk)]
+            )
+        else:
+            base = reverse(self.results_url_name)
         if params:
             return f"{base}?{urlencode(params)}"
         return base

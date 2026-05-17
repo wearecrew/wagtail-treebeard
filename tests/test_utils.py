@@ -7,34 +7,33 @@ from wagtail_treebeard.utils import (
     admin_display_title,
     apply_mp_root_sibling_order,
     apply_mp_sibling_order,
-    index_url_with_parent_pk,
     insert_breadcrumbs_before_last,
     model_supports_manual_ordering,
     move_mp_child_to_position,
     move_mp_root_to_position,
     mp_node_breadcrumb_chain,
     mp_node_edit_breadcrumb_items,
+    mp_node_explore_breadcrumb_items,
+    reverse_index_explore_url,
 )
 
 
-class IndexUrlWithParentPkTests(SimpleTestCase):
-    def test_without_parent(self) -> None:
-        self.assertEqual(
-            index_url_with_parent_pk("/snippets/producttype/", None),
-            "/snippets/producttype/",
+class ReverseIndexExploreUrlTests(TestCase):
+    def test_reverse_explore_url(self) -> None:
+        url = reverse_index_explore_url(
+            TreeNode.snippet_viewset.get_url_name("explore"), 42
         )
+        self.assertIn("/explore/42/", url)
 
-    def test_with_parent(self) -> None:
-        self.assertEqual(
-            index_url_with_parent_pk("/snippets/producttype/", 42),
-            "/snippets/producttype/?parent_pk=42",
+    def test_mp_node_explore_breadcrumb_items(self) -> None:
+        root = TreeNode.add_root(name="Crumb root")
+        items = mp_node_explore_breadcrumb_items(
+            [root],
+            explore_url_name=TreeNode.snippet_viewset.get_url_name("explore"),
         )
-
-    def test_preserves_existing_querystring(self) -> None:
-        self.assertEqual(
-            index_url_with_parent_pk("/snippets/producttype/?q=hat", 42),
-            "/snippets/producttype/?q=hat&parent_pk=42",
-        )
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["label"], "Crumb root")
+        self.assertIn("/explore/", items[0]["url"])
 
 
 class ModelSupportsManualOrderingTests(SimpleTestCase):
@@ -82,6 +81,12 @@ class BreadcrumbHelperTests(SimpleTestCase):
     def test_mp_node_edit_breadcrumb_items_without_url_name(self):
         self.assertEqual(
             mp_node_edit_breadcrumb_items([object()], edit_url_name=None),
+            [],
+        )
+
+    def test_mp_node_explore_breadcrumb_items_without_url_name(self) -> None:
+        self.assertEqual(
+            mp_node_explore_breadcrumb_items([object()], explore_url_name=None),
             [],
         )
 
