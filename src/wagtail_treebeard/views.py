@@ -313,8 +313,7 @@ class MoveView(TreebeardViewMixin, WagtailAdminTemplateMixin, FormView):
             return redirect(self.request.path)
         messages.success(
             self.request,
-            _("Moved '%(title)s' to the root level.")
-            % {"title": str(object_to_move)},
+            _("Moved '%(title)s' to the root level.") % {"title": str(object_to_move)},
         )
         return redirect(reverse(index_url_name))
 
@@ -422,7 +421,12 @@ class ReorderChildrenView(
             raise ImproperlyConfigured(
                 f"{self.__class__.__name__} is missing index or reorder URL names."
             )
-        return parent, self.require_model(), self.index_url_name, self.reorder_children_row_url_name
+        return (
+            parent,
+            self.require_model(),
+            self.index_url_name,
+            self.reorder_children_row_url_name,
+        )
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)

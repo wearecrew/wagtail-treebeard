@@ -50,11 +50,23 @@ class CanChooseRootTests(WagtailTestUtils, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "treebeard-snippet-chooser-clear-parent")
 
-    def test_chooser_results_shows_root_action_for_superuser(self):
+    def test_chooser_results_hides_root_action_by_default(self):
         self.client.login(username="admin", password="password")
         response = self.client.get(
             chooser_results_url(),
             {"chooser_mode": ChooserMode.PARENT_FOR_CREATE},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "treebeard-snippet-chooser-clear-parent")
+
+    def test_chooser_results_shows_root_action_when_enabled(self):
+        self.client.login(username="admin", password="password")
+        response = self.client.get(
+            chooser_results_url(),
+            {
+                "chooser_mode": ChooserMode.PARENT_FOR_CREATE,
+                "show_choose_root_option": "1",
+            },
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "treebeard-snippet-chooser-clear-parent")

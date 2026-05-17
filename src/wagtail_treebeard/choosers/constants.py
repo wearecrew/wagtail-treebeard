@@ -12,4 +12,5 @@ PRESERVED_CHOOSER_PARAMS = (
     "parent_pk",
     "chooser_mode",
     "move_instance_pk",
+    "show_choose_root_option",
 )

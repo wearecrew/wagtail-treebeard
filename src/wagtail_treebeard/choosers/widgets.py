@@ -32,6 +32,10 @@ class TreebeardModelChooser(AdminSnippetChooser):
             params["chooser_mode"] = self.chooser_mode
         if self.move_instance_pk is not None:
             params["move_instance_pk"] = str(self.move_instance_pk)
+        if self.chooser_mode is ChooserMode.PARENT_FOR_CREATE and getattr(
+            self, "show_choose_root_option", False
+        ):
+            params["show_choose_root_option"] = "1"
         base = super().get_chooser_modal_url()
         if not params:
             return base
@@ -48,9 +52,18 @@ class TreebeardModelChooser(AdminSnippetChooser):
 
 
 class TreebeardParentChooser(TreebeardModelChooser):
-    """Pick a parent for create."""
+    """
+    Pick a parent for create.
 
-    def __init__(self, model: type, **kwargs: Any) -> None:
+    Set ``show_choose_root_option=True`` to show “Create as root (no parent)” in the modal
+    when the user has ``add_root``. Off by default so pages that already offer root
+    creation (e.g. :class:`~wagtail_treebeard.views.ConfirmAddPositionView`) stay unambiguous.
+    """
+
+    def __init__(
+        self, model: type, *, show_choose_root_option: bool = False, **kwargs: Any
+    ) -> None:
+        self.show_choose_root_option = show_choose_root_option
         super().__init__(model, chooser_mode=ChooserMode.PARENT_FOR_CREATE, **kwargs)
 
 

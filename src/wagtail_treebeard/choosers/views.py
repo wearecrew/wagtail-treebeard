@@ -42,9 +42,16 @@ class ChooseResultsMixin:
     def can_choose_root_for_user(self, user: AbstractBaseUser) -> bool:
         return self.require_model_class().permission_policy.user_can_add_root(user)
 
+    def show_choose_root_option_enabled(self) -> bool:
+        """Whether the modal may offer “create as root (no parent)”."""
+        raw = self.request.GET.get("show_choose_root_option", "0")
+        return raw in ("1", "true", "True")
+
     @property
     def can_choose_root(self) -> bool:
         if self.get_chooser_mode() is not ChooserMode.PARENT_FOR_CREATE:
+            return False
+        if not self.show_choose_root_option_enabled():
             return False
         return self.can_choose_root_for_user(self.request.user)
 
