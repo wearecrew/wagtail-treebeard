@@ -7,11 +7,11 @@ from wagtail_treebeard.utils import (
     admin_display_title,
     apply_mp_root_sibling_order,
     apply_mp_sibling_order,
-    move_mp_child_to_position,
-    move_mp_root_to_position,
     index_url_with_parent_pk,
     insert_breadcrumbs_before_last,
     model_supports_manual_ordering,
+    move_mp_child_to_position,
+    move_mp_root_to_position,
     mp_node_breadcrumb_chain,
     mp_node_edit_breadcrumb_items,
 )

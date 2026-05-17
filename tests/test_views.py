@@ -12,6 +12,7 @@ from testapp.models import PolicyRestrictedNode, TesterLockedNode, TreeNode
 from wagtail_treebeard.permission_policy import TreebeardModelPermissionPolicy
 from wagtail_treebeard.utils import INDEX_PARENT_PK_QUERY_PARAM
 
+
 POLICY = TreebeardModelPermissionPolicy
 
 
