@@ -10,9 +10,9 @@ from django.db.models import Case, F, Value, When
 from django.db.models.functions import Concat, Substr
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
-
 from treebeard.exceptions import PathOverflow
 from treebeard.mp_tree import MP_Node
+
 
 INDEX_PARENT_PK_QUERY_PARAM = "parent_pk"
 
@@ -306,7 +306,7 @@ def move_mp_child_to_position(
             _(
                 "Child list does not match the current tree state; refresh and try again."
             )
-        )
+        ) from None
     if new_position == old_position:
         return
 
@@ -350,7 +350,7 @@ def move_mp_root_to_position(
     except StopIteration:
         raise ValidationError(
             _("Root list does not match the current tree state; refresh and try again.")
-        )
+        ) from None
     if new_position == old_position:
         return
 
