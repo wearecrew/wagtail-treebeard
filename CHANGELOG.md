@@ -9,5 +9,5 @@
 
 ### Changed
 
-- Require Python 3.12+ and Wagtail 7.0+ (snippet reorder and related admin APIs). Wagtail 6.x and 5.x are not supported.
-- CI: separate Lint and Test workflows, tox matrix across Wagtail 7.0 / 7.4, optional `wagtailmain` on PRs, publish gated on tests.
+- Require Python 3.12+ and Wagtail 7.3+ (APIs used on create and custom URL patterns). Wagtail 6.x and 5.x are not supported.
+- CI: separate Lint and Test workflows, tox matrix across Wagtail 7.3 / 7.4, optional `wagtailmain` on PRs, publish gated on tests.

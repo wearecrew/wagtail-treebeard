@@ -10,14 +10,14 @@ An add-on for managing treebeard `MP_Node`-based snippet models in Wagtail.
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
-Requires **Wagtail 7.0+** (snippet reorder and related admin APIs used for child reordering).
+Requires **Wagtail 7.3+** (snippet reorder, `set_max_order`, and viewset URL helpers used by this package).
 
 ## Supported versions
 
 - Python 3.12, 3.13, 3.14
 - Django 4.2, 5.0, 5.2, 6.0 (see [Wagtail’s compatibility table](https://docs.wagtail.org/en/stable/releases/upgrading.html#compatible-django-python-versions) for each Wagtail release)
-- **Minimum** Wagtail 7.0; **LTS** [7.4](https://docs.wagtail.org/en/stable/releases/7.4.html) (see the [release index](https://docs.wagtail.org/en/stable/releases/index.html))
-- CI tests **7.0** and **7.4** on supported Django/Python pairs, plus **Wagtail `main`** nightly (see [package guidelines](https://github.com/wagtail/wagtail/blob/main/docs/contributing/package_guidelines.md))
+- **Minimum** Wagtail 7.3; **LTS** [7.4](https://docs.wagtail.org/en/stable/releases/7.4.html) (see the [release index](https://docs.wagtail.org/en/stable/releases/index.html))
+- CI tests **7.3** and **7.4** on supported Django/Python pairs, plus **Wagtail `main`** nightly (see [package guidelines](https://github.com/wagtail/wagtail/blob/main/docs/contributing/package_guidelines.md))
 
 ## Installation
 

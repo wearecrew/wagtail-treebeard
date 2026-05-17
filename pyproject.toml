@@ -27,7 +27,7 @@ dynamic = ["version"]
 requires-python = ">=3.12"
 dependencies = [
     "Django>=4.2",
-    "Wagtail>=7.0,<8",
+    "Wagtail>=7.3,<8",
     "django-treebeard>=4.7",
 ]
 
