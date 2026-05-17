@@ -43,7 +43,7 @@ Repository: https://github.com/wearecrew/wagtail-treebeard
 
 ### Other UX rules
 
-- **No bulk delete** on the snippet index (nodes with children cannot be deleted from row actions either).
+- **Bulk delete** on flat/search index listings only (`TreebeardDeleteBulkAction`): leaf nodes are deleted; nodes with children are skipped and reported as warnings. Explore browse mode has no bulk UI. Per-row delete is hidden while `numchild > 0`.
 - Treebeard fields `path`, `depth`, `numchild` are excluded from admin forms.
 - Optional **`add_root`** Meta permission gates creating/moving to root (see README).
 
@@ -63,10 +63,20 @@ just sync             # .venv: editable package + Wagtail + dev tools (for the e
 just test             # single tox env (fast feedback; authoritative for CI)
 just test-one tests.test_views.TreebeardAdminViewTests.test_foo
 just test-ci          # full matrix before PR
-just lint
+just lint             # pre-commit on all files (includes ruff)
 just run              # test project via uv — http://localhost:8020/admin/ (admin / changeme)
 just migrate          # after switching git branches (uv)
 ```
+
+**Before committing:** always run Ruff and fix any reported issues (use the project `.venv` after `just sync`, or whatever environment has `ruff` installed):
+
+```bash
+ruff format .
+ruff check --fix .
+ruff check .          # must pass with no remaining diagnostics
+```
+
+`just lint` runs pre-commit (including Ruff) across the repo and is a good final check before push, but do not skip `ruff format` / `ruff check` on the files you changed when preparing a commit.
 
 **Editor:** after `just sync`, use `.venv/bin/python` and `python.analysis.extraPaths`: `["src", "tests"]` (see `.vscode/settings.json.example`). Tox envs are not used by the language server.
 
