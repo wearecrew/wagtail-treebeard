@@ -6,6 +6,7 @@ from testapp.models import TreeNode
 from wagtail_treebeard.utils import (
     admin_display_title,
     apply_mp_sibling_order,
+    move_mp_child_to_position,
     index_url_with_parent_pk,
     insert_breadcrumbs_before_last,
     model_supports_manual_ordering,
@@ -128,3 +129,108 @@ class ApplyMpSiblingOrderTests(TestCase):
         child = parent.add_child(name="Child")
         with self.assertRaises(ValidationError):
             apply_mp_sibling_order(parent, [child.pk, 99999])
+
+    def test_reorder_preserves_descendant_paths(self):
+        parent = TreeNode.add_root(name="Parent")
+        first = parent.add_child(name="First")
+        grandchild = first.add_child(name="Grandchild")
+        second = parent.add_child(name="Second")
+
+        apply_mp_sibling_order(parent, [second.pk, first.pk])
+
+        grandchild.refresh_from_db()
+        first.refresh_from_db()
+        self.assertEqual(grandchild.get_parent(), first)
+        self.assertTrue(grandchild.path.startswith(first.path))
+
+
+class MpSiblingReorderTests(TestCase):
+    """
+    ``apply_mp_sibling_order`` / ``move_mp_child_to_position`` only (no HTTP).
+
+    Each drag uses four path ``UPDATE``s (park, roll-to-scratch, roll-to-final, place) plus
+    locking/loading — independent of how many siblings are rolled.
+    """
+
+    SIBLING_NAMES = ("One", "Two", "Three", "Four", "Five")
+
+    def setUp(self):
+        self.parent = TreeNode.add_root(name="Parent")
+        self.children = {
+            name: self.parent.add_child(name=name) for name in self.SIBLING_NAMES
+        }
+        self._parent_numchild = self.parent.numchild
+        self._child_numchildren = {
+            name: self.children[name].numchild for name in self.SIBLING_NAMES
+        }
+        self._siblings = list(self.parent.get_children().order_by("path"))
+
+    def _reorder_to_position(
+        self, child_name: str, new_position: int, *, num_queries: int
+    ):
+        child = self.children[child_name]
+        with self.assertNumQueries(num_queries):
+            move_mp_child_to_position(
+                self.parent,
+                child,
+                new_position,
+                siblings=self._siblings,
+            )
+
+    def _assert_order(self, expected: tuple[str, ...]) -> None:
+        names = tuple(self.parent.get_children().values_list("name", flat=True))
+        self.assertEqual(names, expected)
+
+    def _assert_numchild_unchanged(self) -> None:
+        self.parent.refresh_from_db()
+        self.assertEqual(self.parent.numchild, self._parent_numchild)
+        for name in self.SIBLING_NAMES:
+            self.children[name].refresh_from_db()
+            self.assertEqual(
+                self.children[name].numchild, self._child_numchildren[name]
+            )
+
+    def test_first_sibling_to_last_place(self):
+        self._reorder_to_position("One", 4, num_queries=8)
+        self._assert_order(("Two", "Three", "Four", "Five", "One"))
+        self._assert_numchild_unchanged()
+
+    def test_first_sibling_to_third_place(self):
+        self._reorder_to_position("One", 2, num_queries=8)
+        self._assert_order(("Two", "Three", "One", "Four", "Five"))
+        self._assert_numchild_unchanged()
+
+    def test_last_sibling_to_first_place(self):
+        self._reorder_to_position("Five", 0, num_queries=8)
+        self._assert_order(("Five", "One", "Two", "Three", "Four"))
+        self._assert_numchild_unchanged()
+
+    def test_last_sibling_to_second_place(self):
+        self._reorder_to_position("Five", 1, num_queries=8)
+        self._assert_order(("One", "Five", "Two", "Three", "Four"))
+        self._assert_numchild_unchanged()
+
+    def test_third_sibling_to_first_place(self):
+        self._reorder_to_position("Three", 0, num_queries=8)
+        self._assert_order(("Three", "One", "Two", "Four", "Five"))
+        self._assert_numchild_unchanged()
+
+    def test_third_sibling_to_last_place(self):
+        self._reorder_to_position("Three", 4, num_queries=8)
+        self._assert_order(("One", "Two", "Four", "Five", "Three"))
+        self._assert_numchild_unchanged()
+
+    def test_third_sibling_to_second_place(self):
+        self._reorder_to_position("Three", 1, num_queries=8)
+        self._assert_order(("One", "Three", "Two", "Four", "Five"))
+        self._assert_numchild_unchanged()
+
+    def test_same_position_is_noop_without_queries(self):
+        with self.assertNumQueries(0):
+            move_mp_child_to_position(
+                self.parent,
+                self.children["Three"],
+                2,
+                siblings=self._siblings,
+            )
+        self._assert_order(self.SIBLING_NAMES)

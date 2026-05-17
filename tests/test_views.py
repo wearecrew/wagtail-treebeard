@@ -177,24 +177,6 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         child.refresh_from_db()
         self.assertEqual(child.depth, 1)
 
-    def test_reorder_child_row_post(self):
-        parent = TesterLockedNode.add_root(name="Reorder", is_locked=False)
-        parent.add_child(name="One")
-        second = parent.add_child(name="Two")
-        url = (
-            reverse(
-                TesterLockedNode.snippet_viewset.get_url_name("reorder_children_row"),
-                args=[quote(parent.pk), quote(second.pk)],
-            )
-            + "?position=0"
-        )
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 200)
-        data = json.loads(response.content)
-        self.assertTrue(data["success"])
-        names = list(parent.get_children().values_list("name", flat=True))
-        self.assertEqual(names, ["Two", "One"])
-
     def test_reorder_child_row_invalid_child(self):
         parent = TesterLockedNode.add_root(name="Reorder parent", is_locked=False)
         parent.add_child(name="Own child")
@@ -234,6 +216,69 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         url = snippet_url(TreeNode, "add_root")
         response = self.client.post(url, {"name": "Nope"})
         assert_admin_permission_denied(self, response)
+
+
+class ReorderChildRowIntegrationTests(TreebeardAdminViewTests):
+    """POST reorder_children_row: five siblings, varied drag targets (0-based positions)."""
+
+    SIBLING_NAMES = ("One", "Two", "Three", "Four", "Five")
+
+    def _parent_with_five_children(self):
+        parent = TesterLockedNode.add_root(name="Reorder parent", is_locked=False)
+        children = {name: parent.add_child(name=name) for name in self.SIBLING_NAMES}
+        return parent, children
+
+    def _reorder_children_row_url(self, parent, child) -> str:
+        return reverse(
+            TesterLockedNode.snippet_viewset.get_url_name("reorder_children_row"),
+            args=(quote(parent.pk), quote(child.pk)),
+        )
+
+    def _post_reorder(self, parent, child, position: int) -> None:
+        url = f"{self._reorder_children_row_url(parent, child)}?position={position}"
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200, response.content)
+        data = json.loads(response.content)
+        self.assertTrue(data["success"], data)
+
+    def _assert_sibling_names(self, parent, expected: tuple[str, ...]) -> None:
+        names = tuple(parent.get_children().values_list("name", flat=True))
+        self.assertEqual(names, expected)
+
+    def test_reorder_first_sibling_to_last_place(self):
+        parent, children = self._parent_with_five_children()
+        self._post_reorder(parent, children["One"], 4)
+        self._assert_sibling_names(parent, ("Two", "Three", "Four", "Five", "One"))
+
+    def test_reorder_first_sibling_to_third_place(self):
+        parent, children = self._parent_with_five_children()
+        self._post_reorder(parent, children["One"], 2)
+        self._assert_sibling_names(parent, ("Two", "Three", "One", "Four", "Five"))
+
+    def test_reorder_last_sibling_to_first_place(self):
+        parent, children = self._parent_with_five_children()
+        self._post_reorder(parent, children["Five"], 0)
+        self._assert_sibling_names(parent, ("Five", "One", "Two", "Three", "Four"))
+
+    def test_reorder_last_sibling_to_second_place(self):
+        parent, children = self._parent_with_five_children()
+        self._post_reorder(parent, children["Five"], 1)
+        self._assert_sibling_names(parent, ("One", "Five", "Two", "Three", "Four"))
+
+    def test_reorder_third_sibling_to_first_place(self):
+        parent, children = self._parent_with_five_children()
+        self._post_reorder(parent, children["Three"], 0)
+        self._assert_sibling_names(parent, ("Three", "One", "Two", "Four", "Five"))
+
+    def test_reorder_third_sibling_to_last_place(self):
+        parent, children = self._parent_with_five_children()
+        self._post_reorder(parent, children["Three"], 4)
+        self._assert_sibling_names(parent, ("One", "Two", "Four", "Five", "Three"))
+
+    def test_reorder_third_sibling_to_second_place(self):
+        parent, children = self._parent_with_five_children()
+        self._post_reorder(parent, children["Three"], 1)
+        self._assert_sibling_names(parent, ("One", "Three", "Two", "Four", "Five"))
 
 
 class ConfirmAddRedirectTests(WagtailTestUtils, TestCase):

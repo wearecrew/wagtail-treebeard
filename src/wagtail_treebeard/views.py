@@ -36,7 +36,7 @@ from wagtail_treebeard.forms import (
 from wagtail_treebeard.utils import (
     INDEX_PARENT_PK_QUERY_PARAM,
     admin_display_title,
-    apply_mp_sibling_order,
+    move_mp_child_to_position,
     index_url_with_parent_pk,
     insert_breadcrumbs_before_last,
     mp_node_breadcrumb_chain,
@@ -518,12 +518,8 @@ class ReorderChildRowView(TreebeardViewMixin, PermissionCheckedMixin, View):
         if new_position == current_position:
             return JsonResponse({"success": True})
 
-        reordered = list(pks)
-        reordered.pop(current_position)
-        reordered.insert(new_position, item.pk)
-
         try:
-            apply_mp_sibling_order(parent, reordered)
+            move_mp_child_to_position(parent, item, new_position, siblings=siblings)
         except ValidationError as exc:
             msg = exc.error_list[0].message if exc.error_list else str(exc)
             return JsonResponse({"success": False, "error": msg}, status=400)
