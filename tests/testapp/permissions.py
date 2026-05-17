@@ -30,16 +30,11 @@ class RestrictivePlacementPolicy(TreebeardModelPermissionPolicy):
         user: AbstractBaseUser,
         instance: models.Model | None = None,
     ) -> models.QuerySet:
-        if not self.user_has_permission(user, "change"):
-            return self.model._default_manager.none()
-        qs = self.model._default_manager.filter(accept_moves_as_target=True).order_by(
-            "path"
+        return (
+            super()
+            .instances_user_can_move_to(user, instance)
+            .filter(accept_moves_as_target=True)
         )
-        if instance is not None:
-            qs = qs.exclude(pk=instance.pk)
-            if instance.depth > 1:
-                qs = qs.exclude(path=instance.path[: -self.model.steplen])
-        return qs
 
 
 class LockedNodePermissionTester(TreebeardPermissionTester):

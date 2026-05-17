@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from wagtail.permission_policies.base import ModelPermissionPolicy
 
 from wagtail_treebeard.constants import ADD_ROOT_PERMISSION_CODENAME
+from wagtail_treebeard.utils import model_supports_manual_ordering
 
 
 if TYPE_CHECKING:
@@ -33,6 +34,10 @@ class TreebeardPermissionPolicyMixin:
         """Build a per-node tester using ``node``'s :attr:`~wagtail_treebeard.models.TreebeardMixin.permission_tester_class`."""
         return node.permissions_for_user(user, policy=self)
 
+    def instances_user_can_change(self, user: AbstractBaseUser) -> models.QuerySet:
+        """Instances the user may change (subclasses should override via ``instances_user_has_permission_for``)."""
+        return self.model._default_manager.none()
+
     def instances_user_can_add_children_to(
         self, user: AbstractBaseUser
     ) -> models.QuerySet:
@@ -40,9 +45,9 @@ class TreebeardPermissionPolicyMixin:
         Nodes that may be chosen as the parent when creating a child.
 
         Subclass to apply domain filters (select-parent form, choosers, per-node checks). Default is all
-        nodes, ordered by ``path``.
+        nodes the user may change, ordered by ``path``.
         """
-        return self.model._default_manager.all().order_by("path")
+        return self.instances_user_can_change(user).order_by("path")
 
     def instances_user_can_move_to(
         self,
@@ -56,17 +61,37 @@ class TreebeardPermissionPolicyMixin:
         further domain filters (node type, gender, etc.); call ``super()`` first when ``instance`` is
         set so those exclusions still apply.
         """
-        qs = self.instances_user_can_add_children_to(user)
+        qs = self.instances_user_can_change(user).order_by("path")
         if instance is not None:
             qs = qs.exclude(pk=instance.pk)
             if instance.depth > 1:
                 qs = qs.exclude(path=instance.path[: -self.model.steplen])
         return qs
 
-    # --- Request-scoped helpers (admin views) ---
+    def changeable_siblings_queryset(
+        self,
+        user: AbstractBaseUser,
+        *,
+        parent: models.Model | None = None,
+    ) -> models.QuerySet:
+        """Changeable nodes among siblings at this level (roots when ``parent`` is omitted)."""
+        return self.model._default_manager.none()
 
     def user_can_add_root(self, user: AbstractBaseUser) -> bool:
         """Whether the select-parent step may offer creating a new root node."""
+        return False
+
+    def user_can_reorder_siblings_at_level(
+        self,
+        user: AbstractBaseUser,
+        *,
+        parent: models.Model | None = None,
+    ) -> bool:
+        """Whether drag-reordering is allowed among siblings at this level (``parent``'s children, or roots)."""
+        return False
+
+    def user_can_reorder_roots(self, user: AbstractBaseUser) -> bool:
+        """Whether root-level entries may be drag-reordered in the admin."""
         return False
 
 
@@ -86,6 +111,9 @@ class TreebeardModelPermissionPolicy(
             for codename, _ in self.model._meta.permissions
         )
 
+    def instances_user_can_change(self, user: AbstractBaseUser) -> models.QuerySet:
+        return self.instances_user_has_permission_for(user, "change")
+
     def instances_user_can_add_children_to(
         self, user: AbstractBaseUser
     ) -> models.QuerySet:
@@ -93,14 +121,28 @@ class TreebeardModelPermissionPolicy(
             return self.model._default_manager.none()
         return super().instances_user_can_add_children_to(user)
 
-    def instances_user_can_move_to(
+    def changeable_siblings_queryset(
         self,
         user: AbstractBaseUser,
-        instance: models.Model | None = None,
+        *,
+        parent: models.Model | None = None,
     ) -> models.QuerySet:
+        """
+        Siblings listed on the reorder screen at this level (roots when ``parent`` is omitted).
+
+        Gated by ``change`` on ``parent`` for child reorder, or model-level ``change`` for roots —
+        not by per-child ``change``. Reordering only updates path order under a fixed parent.
+        """
+        if parent is not None:
+            if not self.user_has_permission_for_instance(user, "change", parent):
+                return self.model._default_manager.none()
+            return self.model.objects.filter(
+                path__startswith=parent.path,
+                depth=parent.depth + 1,
+            ).order_by("path")
         if not self.user_has_permission(user, "change"):
             return self.model._default_manager.none()
-        return super().instances_user_can_move_to(user, instance)
+        return self.model.objects.filter(depth=1).order_by("path")
 
     def user_can_add_root(self, user: AbstractBaseUser) -> bool:
         """Whether the select-parent step may offer creating a new root node."""
@@ -111,3 +153,29 @@ class TreebeardModelPermissionPolicy(
             opts = self.model._meta
             return user.has_perm(f"{opts.app_label}.{ADD_ROOT_PERMISSION_CODENAME}")
         return True
+
+    def user_can_reorder_siblings_at_level(
+        self,
+        user: AbstractBaseUser,
+        *,
+        parent: models.Model | None = None,
+    ) -> bool:
+        """
+        Whether drag-reordering is allowed among siblings at this level.
+
+        Child reorder: manual ordering, ``change`` on the parent, and ``parent.numchild >= 2``.
+        Root reorder: manual ordering, model-level ``change``, and at least two root nodes.
+        Sibling path order is updated under a fixed parent; this is not per-child ``change``.
+        """
+        if not model_supports_manual_ordering(self.model):
+            return False
+        if parent is not None:
+            if parent.numchild < 2:
+                return False
+            return self.user_has_permission_for_instance(user, "change", parent)
+        if not self.user_has_permission(user, "change"):
+            return False
+        return self.model.get_root_nodes().count() >= 2
+
+    def user_can_reorder_roots(self, user: AbstractBaseUser) -> bool:
+        return self.user_can_reorder_siblings_at_level(user, parent=None)

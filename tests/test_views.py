@@ -12,6 +12,8 @@ from testapp.models import PolicyRestrictedNode, TesterLockedNode, TreeNode
 from wagtail_treebeard.permission_policy import TreebeardModelPermissionPolicy
 from wagtail_treebeard.utils import INDEX_PARENT_PK_QUERY_PARAM
 
+POLICY = TreebeardModelPermissionPolicy
+
 
 def snippet_url(model: type, view_name: str, *args: object) -> str:
     return reverse(model.snippet_viewset.get_url_name(view_name), args=args)
@@ -91,7 +93,8 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
 
     def test_reorder_children_denied_for_locked_parent(self):
         locked = TesterLockedNode.add_root(name="Locked parent", is_locked=True)
-        locked.add_child(name="Child")
+        locked.add_child(name="Child one")
+        locked.add_child(name="Child two")
         url = snippet_url(TesterLockedNode, "reorder_children", locked.pk)
         response = self.client.get(url)
         assert_admin_permission_denied(self, response)
@@ -179,7 +182,8 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
 
     def test_reorder_child_row_invalid_child(self):
         parent = TesterLockedNode.add_root(name="Reorder parent", is_locked=False)
-        parent.add_child(name="Own child")
+        parent.add_child(name="Own child one")
+        parent.add_child(name="Own child two")
         other = TesterLockedNode.add_root(name="Other", is_locked=False)
         stray = other.add_child(name="Stray")
         url = reverse(
@@ -195,7 +199,55 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         url = snippet_url(TesterLockedNode, "reorder_children", parent.pk)
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], snippet_url(TesterLockedNode, "list"))
+        self.assertEqual(
+            response["Location"],
+            f"{snippet_url(TesterLockedNode, 'list')}?{INDEX_PARENT_PK_QUERY_PARAM}={parent.pk}",
+        )
+
+    def test_reorder_children_lists_all_children(self):
+        parent = TreeNode.add_root(name="Parent")
+        parent.add_child(name="Child A")
+        parent.add_child(name="Child B")
+        parent.add_child(name="Child C")
+        url = snippet_url(TreeNode, "reorder_children", parent.pk)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Child A")
+        self.assertContains(response, "Child B")
+        self.assertContains(response, "Child C")
+
+    def test_reorder_root_entries_allowed_with_multiple_roots(self):
+        TreeNode.add_root(name="Root one")
+        TreeNode.add_root(name="Root two")
+        url = snippet_url(TreeNode, "reorder_root_entries")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Root one")
+
+    def test_reorder_root_entries_redirects_when_single_root(self):
+        TreeNode.add_root(name="Lonely")
+        url = snippet_url(TreeNode, "reorder_root_entries")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], snippet_url(TreeNode, "list"))
+
+    def test_index_shows_reorder_roots_header_at_root_level(self):
+        TreeNode.add_root(name="Root A")
+        TreeNode.add_root(name="Root B")
+        response = self.client.get(snippet_url(TreeNode, "list"))
+        self.assertContains(response, snippet_url(TreeNode, "reorder_root_entries"))
+        self.assertContains(response, "Reorder root entries")
+
+    def test_reorder_root_entry_row_invalid_non_root(self):
+        parent = TreeNode.add_root(name="Parent")
+        child = parent.add_child(name="Child")
+        url = reverse(
+            TreeNode.snippet_viewset.get_url_name("reorder_root_entry_row"),
+            args=[quote(child.pk)],
+        )
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(json.loads(response.content)["success"])
 
     def test_edit_view_includes_ancestor_breadcrumbs(self):
         root = TreeNode.add_root(name="Crumb root")

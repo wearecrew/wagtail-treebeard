@@ -5,8 +5,10 @@ from treebeard.mp_tree import MP_Node
 from testapp.models import TreeNode
 from wagtail_treebeard.utils import (
     admin_display_title,
+    apply_mp_root_sibling_order,
     apply_mp_sibling_order,
     move_mp_child_to_position,
+    move_mp_root_to_position,
     index_url_with_parent_pk,
     insert_breadcrumbs_before_last,
     model_supports_manual_ordering,
@@ -234,3 +236,60 @@ class MpSiblingReorderTests(TestCase):
                 siblings=self._siblings,
             )
         self._assert_order(self.SIBLING_NAMES)
+
+
+class ApplyMpRootSiblingOrderTests(TestCase):
+    def test_reorders_roots(self):
+        first = TreeNode.add_root(name="First")
+        second = TreeNode.add_root(name="Second")
+        third = TreeNode.add_root(name="Third")
+
+        apply_mp_root_sibling_order(TreeNode, [third.pk, first.pk, second.pk])
+
+        names = list(TreeNode.get_root_nodes().values_list("name", flat=True))
+        self.assertEqual(names, ["Third", "First", "Second"])
+
+    def test_single_root_is_noop(self):
+        only = TreeNode.add_root(name="Only")
+        apply_mp_root_sibling_order(TreeNode, [only.pk])
+        self.assertEqual(only.get_root().pk, only.pk)
+
+    def test_mismatched_pks_raises_validation_error(self):
+        only = TreeNode.add_root(name="Only")
+        with self.assertRaises(ValidationError):
+            apply_mp_root_sibling_order(TreeNode, [only.pk, 99999])
+
+    def test_reorder_preserves_descendant_paths(self):
+        first = TreeNode.add_root(name="First")
+        child = first.add_child(name="Child")
+        second = TreeNode.add_root(name="Second")
+
+        apply_mp_root_sibling_order(TreeNode, [second.pk, first.pk])
+
+        child.refresh_from_db()
+        first.refresh_from_db()
+        self.assertEqual(child.get_parent(), first)
+        self.assertTrue(child.path.startswith(first.path))
+
+
+class MpRootReorderTests(TestCase):
+    SIBLING_NAMES = ("One", "Two", "Three", "Four", "Five")
+
+    def setUp(self):
+        self.roots = {name: TreeNode.add_root(name=name) for name in self.SIBLING_NAMES}
+        self._siblings = list(TreeNode.get_root_nodes().order_by("path"))
+
+    def _reorder_to_position(
+        self, root_name: str, new_position: int, *, num_queries: int
+    ):
+        root = self.roots[root_name]
+        with self.assertNumQueries(num_queries):
+            move_mp_root_to_position(root, new_position, siblings=self._siblings)
+
+    def _assert_order(self, expected: tuple[str, ...]) -> None:
+        names = tuple(TreeNode.get_root_nodes().values_list("name", flat=True))
+        self.assertEqual(names, expected)
+
+    def test_third_root_to_second_place(self):
+        self._reorder_to_position("Three", 1, num_queries=7)
+        self._assert_order(("One", "Three", "Two", "Four", "Five"))

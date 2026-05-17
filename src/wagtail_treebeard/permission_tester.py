@@ -13,8 +13,6 @@ if TYPE_CHECKING:
 
     from wagtail_treebeard.permission_policy import TreebeardPermissionPolicyMixin
 
-from wagtail_treebeard.utils import model_supports_manual_ordering
-
 
 class TreebeardPermissionTester:
     """
@@ -36,8 +34,6 @@ class TreebeardPermissionTester:
 
     def can_add_child(self) -> bool:
         """Whether a new child may be created under ``self.node`` (via the permission policy)."""
-        if not self.permission_policy.user_has_permission(self.user, "add"):
-            return False
         return (
             self.permission_policy.instances_user_can_add_children_to(self.user)
             .filter(pk=self.node.pk)
@@ -55,7 +51,9 @@ class TreebeardPermissionTester:
 
     def can_move_to(self, parent: models.Model) -> bool:
         """Whether ``self.node`` may be moved to be a direct child of ``parent`` (via the permission policy)."""
-        if not self.permission_policy.user_has_permission(self.user, "change"):
+        if not self.permission_policy.user_has_permission_for_instance(
+            self.user, "change", self.node
+        ):
             return False
         return parent.pk in self._move_target_parent_pks()
 
@@ -69,7 +67,9 @@ class TreebeardPermissionTester:
         or (for non-root nodes) promoting to root via
         :meth:`~wagtail_treebeard.permission_policy.TreebeardPermissionPolicyMixin.user_can_add_root`.
         """
-        if not self.permission_policy.user_has_permission(self.user, "change"):
+        if not self.permission_policy.user_has_permission_for_instance(
+            self.user, "change", self.node
+        ):
             return False
         if not self.node.can_move():
             return False
@@ -81,8 +81,8 @@ class TreebeardPermissionTester:
 
     def can_reorder_children(self) -> bool:
         """Whether direct children of ``self.node`` may be drag-reordered (not used when ``node_order_by`` is set)."""
-        if not model_supports_manual_ordering(type(self.node)):
+        if self.node.numchild < 2:
             return False
-        if not self.permission_policy.user_has_permission(self.user, "change"):
-            return False
-        return self.node.numchild > 0
+        return self.permission_policy.user_can_reorder_siblings_at_level(
+            self.user, parent=self.node
+        )

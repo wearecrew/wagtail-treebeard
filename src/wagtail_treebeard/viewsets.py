@@ -32,6 +32,8 @@ from wagtail_treebeard.views import (
     MoveView,
     ReorderChildrenView,
     ReorderChildRowView,
+    ReorderRootEntriesView,
+    ReorderRootEntryRowView,
 )
 
 
@@ -50,6 +52,12 @@ class WagtailTreebeardSnippetViewSet(snippet_views.SnippetViewSet):
     add_view_class = CreateView
     reorder_children_view_class: type[ReorderChildrenView] = ReorderChildrenView
     reorder_child_row_view_class: type[ReorderChildRowView] = ReorderChildRowView
+    reorder_root_entries_view_class: type[ReorderRootEntriesView] = (
+        ReorderRootEntriesView
+    )
+    reorder_root_entry_row_view_class: type[ReorderRootEntryRowView] = (
+        ReorderRootEntryRowView
+    )
 
     chooser_viewset_class = ChooserViewSet
     chooser_per_page = 50
@@ -104,9 +112,17 @@ class WagtailTreebeardSnippetViewSet(snippet_views.SnippetViewSet):
             common["reorder_children_row_url_name"] = self.get_url_name(
                 "reorder_children_row"
             )
+            common["reorder_root_entries_url_name"] = self.get_url_name(
+                "reorder_root_entries"
+            )
+            common["reorder_root_entry_row_url_name"] = self.get_url_name(
+                "reorder_root_entry_row"
+            )
         else:
             common["reorder_children_url_name"] = None
             common["reorder_children_row_url_name"] = None
+            common["reorder_root_entries_url_name"] = None
+            common["reorder_root_entry_row_url_name"] = None
         return common
 
     def get_index_template(self) -> list[str]:
@@ -149,6 +165,14 @@ class WagtailTreebeardSnippetViewSet(snippet_views.SnippetViewSet):
     def reorder_child_row_view(self):
         return self.construct_view(self.reorder_child_row_view_class)
 
+    @property
+    def reorder_root_entries_view(self):
+        return self.construct_view(self.reorder_root_entries_view_class)
+
+    @property
+    def reorder_root_entry_row_view(self):
+        return self.construct_view(self.reorder_root_entry_row_view_class)
+
     def get_urlpatterns(self):
         conv = self.pk_path_converter
         patterns = list(super().get_urlpatterns())
@@ -173,6 +197,16 @@ class WagtailTreebeardSnippetViewSet(snippet_views.SnippetViewSet):
                         f"reorder-children/<{conv}:parent_pk>/",
                         self.reorder_children_view,
                         name="reorder_children",
+                    ),
+                    path(
+                        f"reorder-roots/reorder/<{conv}:pk>/",
+                        self.reorder_root_entry_row_view,
+                        name="reorder_root_entry_row",
+                    ),
+                    path(
+                        "reorder-roots/",
+                        self.reorder_root_entries_view,
+                        name="reorder_root_entries",
                     ),
                 ]
             )

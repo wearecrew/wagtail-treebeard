@@ -172,7 +172,8 @@ class LockedNodePermissionTesterTests(TestCase):
         cls.unlocked = TesterLockedNode.add_root(name="Unlocked", is_locked=False)
         cls.locked = TesterLockedNode.add_root(name="Locked", is_locked=True)
         cls.locked.add_child(name="Locked child")
-        cls.unlocked.add_child(name="Unlocked child")
+        cls.unlocked.add_child(name="Unlocked child one")
+        cls.unlocked.add_child(name="Unlocked child two")
 
     def test_locked_node_can_move_domain_check(self):
         self.assertFalse(self.locked.can_move())
@@ -299,6 +300,48 @@ class TreebeardModelPermissionPolicyTests(TestCase):
     def test_user_can_add_root_requires_add_root_permission_when_registered(self):
         self.assertFalse(self.policy.user_can_add_root(self.add_only))
         self.assertTrue(self.policy.user_can_add_root(self.add_root_user))
+
+    def test_user_can_reorder_roots_false_without_change(self):
+        self.assertFalse(self.policy.user_can_reorder_roots(self.add_only))
+
+    def test_user_can_reorder_roots_true_with_multiple_changeable_roots(self):
+        TreeNode.add_root(name="Root A")
+        TreeNode.add_root(name="Root B")
+        self.assertTrue(self.policy.user_can_reorder_roots(self.change_only))
+
+    def test_user_can_reorder_roots_false_with_single_root(self):
+        self.assertFalse(self.policy.user_can_reorder_roots(self.change_only))
+
+    def test_user_can_reorder_siblings_true_with_parent_change_and_two_children(self):
+        parent = TreeNode.add_root(name="Parent")
+        parent.add_child(name="Child A")
+        parent.add_child(name="Child B")
+        self.assertTrue(
+            self.policy.user_can_reorder_siblings_at_level(
+                self.change_only, parent=parent
+            )
+        )
+
+    def test_user_can_reorder_requires_at_least_two_children(self):
+        parent = TreeNode.add_root(name="Parent")
+        parent.add_child(name="Only child")
+        self.assertFalse(
+            self.policy.user_can_reorder_siblings_at_level(
+                self.change_only, parent=parent
+            )
+        )
+
+    def test_instances_user_can_add_children_to_uses_changeable_instances(self):
+        parent = TreeNode.add_root(name="Add-child parent")
+        user = User.objects.create_user("addchange", "addchange@example.com", "p")
+        user.user_permissions.add(self.add_perm, self.change_perm)
+        add_children_to = self.policy.instances_user_can_add_children_to(user)
+        changeable = self.policy.instances_user_can_change(user)
+        self.assertIn(parent.pk, add_children_to.values_list("pk", flat=True))
+        self.assertEqual(
+            set(add_children_to.values_list("pk", flat=True)),
+            set(changeable.values_list("pk", flat=True)),
+        )
 
     def test_tester_denies_move_without_change_permission(self):
         perms = self.child.permissions_for_user(self.add_only)

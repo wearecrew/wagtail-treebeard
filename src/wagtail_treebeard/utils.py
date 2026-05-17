@@ -76,13 +76,15 @@ def insert_breadcrumbs_before_last(
 
 def _bulk_rewrite_subtree_paths(
     model: type[MP_Node],
-    parent: MP_Node,
+    *,
+    anchor_path: str,
+    anchor_depth: int,
     mappings: list[tuple[str, str]],
 ) -> None:
     """
     One ``UPDATE`` applying disjoint subtree path rewrites (``Case`` / ``When``).
 
-    Safe when each ``old_path`` is a distinct sibling root prefix under ``parent``.
+    Safe when each ``old_path`` is a distinct sibling root prefix under the anchor.
     """
     mappings = [(old, new) for old, new in mappings if old != new]
     if not mappings:
@@ -101,20 +103,22 @@ def _bulk_rewrite_subtree_paths(
         if len(new_path) > len(old_path):
             raise PathOverflow(f"Path Overflow from: '{old_path}'")
     model.objects.filter(
-        path__startswith=parent.path,
-        depth__gt=parent.depth,
+        path__startswith=anchor_path,
+        depth__gt=anchor_depth,
     ).update(path=Case(*whens, default=F("path")))
 
 
 def _sibling_roll_path_mappings(
     model: type[MP_Node],
-    parent: MP_Node,
+    *,
+    anchor_path: str,
+    anchor_depth: int,
     siblings: list[MP_Node],
     old_index: int,
     new_index: int,
 ) -> list[tuple[str, str]]:
     """``(old_path, new_path)`` for one batched roll step opening the target gap."""
-    depth = parent.depth + 1
+    depth = anchor_depth + 1
     steplen = model.steplen
     mappings: list[tuple[str, str]] = []
     if new_index > old_index:
@@ -129,16 +133,17 @@ def _sibling_roll_path_mappings(
         new_position = position + delta
         if new_position < 1:
             raise PathOverflow(f"Path Overflow from: '{sibling.path}'")
-        new_path = model._get_path(parent.path, depth, new_position)
+        new_path = model._get_path(anchor_path, depth, new_position)
         mappings.append((sibling.path, new_path))
     return mappings
 
 
 def _apply_roll_mappings_via_scratch(
     model: type[MP_Node],
-    parent: MP_Node,
-    roll_mappings: list[tuple[str, str]],
     *,
+    anchor_path: str,
+    anchor_depth: int,
+    roll_mappings: list[tuple[str, str]],
     scratch_base_position: int,
 ) -> None:
     """
@@ -150,24 +155,34 @@ def _apply_roll_mappings_via_scratch(
     if not roll_mappings:
         return
 
-    depth = parent.depth + 1
+    depth = anchor_depth + 1
     via_temp: list[tuple[str, str]] = []
     temp_to_final: list[tuple[str, str]] = []
     for index, (old_path, new_path) in enumerate(roll_mappings):
         temp_position = scratch_base_position + index + 1
-        temp_path = model._get_path(parent.path, depth, temp_position)
+        temp_path = model._get_path(anchor_path, depth, temp_position)
         if len(temp_path) > len(old_path):
-            previous = model._get_path(parent.path, depth, temp_position - 1)
+            previous = model._get_path(anchor_path, depth, temp_position - 1)
             raise PathOverflow(f"Path Overflow from: '{previous}'")
         via_temp.append((old_path, temp_path))
         temp_to_final.append((temp_path, new_path))
 
-    _bulk_rewrite_subtree_paths(model, parent, via_temp)
-    _bulk_rewrite_subtree_paths(model, parent, temp_to_final)
+    _bulk_rewrite_subtree_paths(
+        model, anchor_path=anchor_path, anchor_depth=anchor_depth, mappings=via_temp
+    )
+    _bulk_rewrite_subtree_paths(
+        model,
+        anchor_path=anchor_path,
+        anchor_depth=anchor_depth,
+        mappings=temp_to_final,
+    )
 
 
-def _reorder_child_by_index(
-    parent: MP_Node,
+def _reorder_sibling_by_index(
+    model: type[MP_Node],
+    *,
+    anchor_path: str,
+    anchor_depth: int,
     item: MP_Node,
     old_index: int,
     new_index: int,
@@ -183,44 +198,60 @@ def _reorder_child_by_index(
     if old_index == new_index:
         return
 
-    model = type(parent)
-    depth = parent.depth + 1
+    depth = anchor_depth + 1
     steplen = model.steplen
     max_position = max(model._str2int(sibling.path[-steplen:]) for sibling in siblings)
     scratch_position = max_position + 1
-    scratch_path = model._get_path(parent.path, depth, scratch_position)
+    scratch_path = model._get_path(anchor_path, depth, scratch_position)
     if len(scratch_path) > len(item.path):
         raise PathOverflow(f"Path Overflow from: '{item.path}'")
 
-    _bulk_rewrite_subtree_paths(model, parent, [(item.path, scratch_path)])
+    _bulk_rewrite_subtree_paths(
+        model,
+        anchor_path=anchor_path,
+        anchor_depth=anchor_depth,
+        mappings=[(item.path, scratch_path)],
+    )
 
     roll_mappings = _sibling_roll_path_mappings(
-        model, parent, siblings, old_index, new_index
+        model,
+        anchor_path=anchor_path,
+        anchor_depth=anchor_depth,
+        siblings=siblings,
+        old_index=old_index,
+        new_index=new_index,
     )
     _apply_roll_mappings_via_scratch(
         model,
-        parent,
-        roll_mappings,
+        anchor_path=anchor_path,
+        anchor_depth=anchor_depth,
+        roll_mappings=roll_mappings,
         scratch_base_position=scratch_position,
     )
 
-    target_path = model._get_path(parent.path, depth, new_index + 1)
-    _bulk_rewrite_subtree_paths(model, parent, [(scratch_path, target_path)])
+    target_path = model._get_path(anchor_path, depth, new_index + 1)
+    _bulk_rewrite_subtree_paths(
+        model,
+        anchor_path=anchor_path,
+        anchor_depth=anchor_depth,
+        mappings=[(scratch_path, target_path)],
+    )
 
 
-def _reorder_mp_children_locked(
-    parent: MP_Node,
+def _reorder_mp_siblings_locked(
+    model: type[MP_Node],
+    *,
+    anchor_path: str,
+    anchor_depth: int,
+    sibling_depth: int,
     ordered_pks: list[Any],
 ) -> None:
-    """Apply ``ordered_pks`` by repeated single-index moves (parent row already locked)."""
-    model = type(parent)
-    child_depth = parent.depth + 1
-
+    """Apply ``ordered_pks`` by repeated single-index moves (siblings already locked)."""
     while True:
         siblings = list(
             model.objects.filter(
-                path__startswith=parent.path,
-                depth=child_depth,
+                path__startswith=anchor_path,
+                depth=sibling_depth,
             )
             .only("pk", "path", "depth", "numchild")
             .order_by("path")
@@ -233,8 +264,20 @@ def _reorder_mp_children_locked(
                 continue
             item = next(sibling for sibling in siblings if sibling.pk == pk)
             old_index = current_pks.index(pk)
-            _reorder_child_by_index(parent, item, old_index, target_index, siblings)
+            _reorder_sibling_by_index(
+                model,
+                anchor_path=anchor_path,
+                anchor_depth=anchor_depth,
+                item=item,
+                old_index=old_index,
+                new_index=target_index,
+                siblings=siblings,
+            )
             break
+
+
+def _lock_root_siblings(model: type[MP_Node]) -> list[MP_Node]:
+    return list(model.get_root_nodes().select_for_update().order_by("path"))
 
 
 def move_mp_child_to_position(
@@ -245,9 +288,10 @@ def move_mp_child_to_position(
     siblings: list[MP_Node] | None = None,
 ) -> None:
     """
-    Move one direct child of ``parent`` to ``new_position`` (0-based, path order among siblings).
+    Reorder one direct child of ``parent`` to ``new_position`` (0-based, path order among siblings).
 
-    Pass ``siblings`` when the caller already loaded them (path order).
+    Pass ``siblings`` when the caller already loaded them (path order). Path-order update only,
+    not a reparenting :meth:`~treebeard.mp_tree.MP_Node.move`.
     """
     model = type(parent)
 
@@ -269,10 +313,59 @@ def move_mp_child_to_position(
     with transaction.atomic():
         locked_parent = model.objects.select_for_update().get(pk=parent.pk)
         siblings = list(locked_parent.get_children().order_by("path"))
-        item = next(sibling for sibling in siblings if sibling.pk == item.pk)
+        locked_item = next(sibling for sibling in siblings if sibling.pk == item.pk)
         try:
-            _reorder_child_by_index(
-                locked_parent, item, old_position, new_position, siblings
+            _reorder_sibling_by_index(
+                model,
+                anchor_path=locked_parent.path,
+                anchor_depth=locked_parent.depth,
+                item=locked_item,
+                old_index=old_position,
+                new_index=new_position,
+                siblings=siblings,
+            )
+        except PathOverflow as exc:
+            raise ValidationError(str(exc)) from exc
+
+
+def move_mp_root_to_position(
+    item: MP_Node,
+    new_position: int,
+    *,
+    siblings: list[MP_Node] | None = None,
+) -> None:
+    """
+    Reorder one root node to ``new_position`` (0-based, path order among roots).
+
+    Pass ``siblings`` when the caller already loaded them (path order).
+    """
+    model = type(item)
+
+    if siblings is None:
+        siblings = list(model.get_root_nodes().order_by("path"))
+    try:
+        old_position = next(
+            index for index, sibling in enumerate(siblings) if sibling.pk == item.pk
+        )
+    except StopIteration:
+        raise ValidationError(
+            _("Root list does not match the current tree state; refresh and try again.")
+        )
+    if new_position == old_position:
+        return
+
+    with transaction.atomic():
+        siblings = _lock_root_siblings(model)
+        locked_item = next(sibling for sibling in siblings if sibling.pk == item.pk)
+        try:
+            _reorder_sibling_by_index(
+                model,
+                anchor_path="",
+                anchor_depth=0,
+                item=locked_item,
+                old_index=old_position,
+                new_index=new_position,
+                siblings=siblings,
             )
         except PathOverflow as exc:
             raise ValidationError(str(exc)) from exc
@@ -308,6 +401,49 @@ def apply_mp_sibling_order(parent: MP_Node, ordered_pks: list[Any]) -> None:
             return
 
         try:
-            _reorder_mp_children_locked(locked_parent, ordered_pks)
+            _reorder_mp_siblings_locked(
+                model,
+                anchor_path=locked_parent.path,
+                anchor_depth=locked_parent.depth,
+                sibling_depth=locked_parent.depth + 1,
+                ordered_pks=ordered_pks,
+            )
+        except PathOverflow as exc:
+            raise ValidationError(str(exc)) from exc
+
+
+def apply_mp_root_sibling_order(model: type[MP_Node], ordered_pks: list[Any]) -> None:
+    """
+    Reorder root nodes to match ``ordered_pks`` (a permutation of root PKs).
+
+    Same path-rewrite strategy as :func:`apply_mp_sibling_order`, using the virtual tree anchor
+    at depth 0.
+    """
+    with transaction.atomic():
+        _lock_root_siblings(model)
+        roots_by_pk = {
+            root.pk: root
+            for root in model.objects.filter(depth=1).only(
+                "pk", "path", "depth", "numchild"
+            )
+        }
+        existing = set(roots_by_pk)
+        if set(ordered_pks) != existing or len(ordered_pks) != len(existing):
+            raise ValidationError(
+                _(
+                    "Root list does not match the current tree state; refresh and try again."
+                )
+            )
+        if len(ordered_pks) <= 1:
+            return
+
+        try:
+            _reorder_mp_siblings_locked(
+                model,
+                anchor_path="",
+                anchor_depth=0,
+                sibling_depth=1,
+                ordered_pks=ordered_pks,
+            )
         except PathOverflow as exc:
             raise ValidationError(str(exc)) from exc

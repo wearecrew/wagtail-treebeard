@@ -131,7 +131,7 @@ Assign `add_root` in the Groups UI like any other permission. Users with `add` b
 | `can_add_child()` | User has `add` and this node is in `instances_user_can_add_children_to` |
 | `can_move_to(parent)` | User has `change` and `parent` is in `instances_user_can_move_to` for this node |
 | `can_move()` | User has `change`, `node.can_move()` is true, and there is at least one move target (another parent **or** move-to-root when allowed) |
-| `can_reorder_children()` | Manual ordering is enabled, user has `change`, and the node has children |
+| `can_reorder_children()` | Whether this node may show **Reorder children** on the index (delegates to the policy; override for per-node rules such as locked parents). |
 
 #### Domain rule on the model
 
@@ -149,6 +149,8 @@ Override `can_move()` on the model when a **specific instance** must not be move
 | **Override when** | Valid parents depend on node type, flags, or collections | Actions depend on node state, workflow, or logic not expressible as a queryset |
 
 Keep placement rules in the **policy** so choosers, forms, and POST validation stay aligned. Use the **tester** for per-row UI or when you need to combine policy results with extra checks. Call `super()` in tester methods so Django and policy rules still apply.
+
+For reordering, see [Reordering siblings](#reordering-siblings) below. Override ``user_can_reorder_siblings_at_level``, ``user_can_reorder_roots``, and ``changeable_siblings_queryset`` on the policy for model-wide rules, or ``can_reorder_children()`` on the tester for per-node rules (e.g. locked parents).
 
 Set classes on the model:
 
@@ -257,9 +259,36 @@ class CategoryViewSet(WagtailTreebeardSnippetViewSet):
     # chooser_viewset_class = ChooserViewSet  # optional subclass
 ```
 
-## Manual child ordering
+## Reordering siblings
 
-Drag-and-drop reordering is available when `MP_Node.node_order_by` is **not** set (sibling order is path-based). If you set `node_order_by` on the model, reorder UI is omitted because inserts/moves already follow those fields.
+Drag-and-drop reordering is available when `MP_Node.node_order_by` is **not** set (sibling order follows `path`). If you set `node_order_by` on the model, reorder UI is omitted because inserts and moves already follow those fields.
+
+Reordering is **not** the same as **move**: it only rewrites sibling `path` values under a fixed parent (or among roots). It does not change parents, `numchild` on other branches, or depth. Reparenting uses the move view and :meth:`~treebeard.mp_tree.MP_Node.move`.
+
+### Child reorder vs root reorder
+
+There are two admin flows. They share the same underlying policy helper (`user_can_reorder_siblings_at_level`) but pass different arguments and surface in different places on the index.
+
+| | **Reorder children** (under a parent) | **Reorder root entries** (top level) |
+|---|----------------------------------------|--------------------------------------|
+| **Where it appears** | “Reorder children” on each index row when you are browsing that node’s children (or from search if the row is shown) | “Reorder root entries” in the index **header** when you are at the root listing (`browse_parent` is unset) |
+| **Policy: may open reorder UI?** | `user_can_reorder_siblings_at_level(user, parent=that_node)` | `user_can_reorder_roots(user)` — same check with `parent=None` |
+| **Per-row index check** | `parent.permissions_for_user(user).can_reorder_children()` (tester → policy with `parent=self.node`) | N/A (header uses policy only) |
+| **Reorder screen lists** | All direct children of the parent (`changeable_siblings_queryset`) | All root nodes |
+| **Permission gate** | **`change` on the parent** and **`numchild >= 2`** | Model-level **`change`** and at least **two** roots |
+
+Reordering only updates **path order** under a fixed parent (or among roots). It is **not** treated as `change` on each child: the gate is **`change` on the parent** (for children) plus more than one sibling. The index uses the parent’s **`numchild`** field for a cheap “at least two children” check before calling the policy.
+
+**Root** reorder has no parent; it uses model-level `change` and a root count instead.
+
+### What to override
+
+| Goal | Override |
+|------|----------|
+| Who may reorder children of node X | `user_can_reorder_siblings_at_level(user, parent=X)` or `can_reorder_children()` on the tester for row X |
+| Who may reorder roots | `user_can_reorder_roots(user)` or `user_can_reorder_siblings_at_level(user, parent=None)` |
+| Which rows appear on the reorder screen | `changeable_siblings_queryset(user, parent=...)` |
+| Hide reorder for one locked parent but allow others | `can_reorder_children()` on a custom tester (call `super()` then apply your rule) |
 
 ## Development
 

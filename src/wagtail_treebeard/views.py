@@ -22,8 +22,7 @@ from django.views import View
 from django.views.generic import FormView, TemplateView
 from wagtail.admin.ui.tables import Column, Table
 from wagtail.admin.views.generic.base import WagtailAdminTemplateMixin
-from wagtail.admin.views.generic.permissions import PermissionCheckedMixin
-from wagtail.admin.widgets.button import Button
+from wagtail.admin.widgets.button import Button, HeaderButton
 from wagtail.log_actions import log
 from wagtail.models.orderable import set_max_order
 from wagtail.snippets.views import snippets as snippet_views
@@ -37,6 +36,7 @@ from wagtail_treebeard.utils import (
     INDEX_PARENT_PK_QUERY_PARAM,
     admin_display_title,
     move_mp_child_to_position,
+    move_mp_root_to_position,
     index_url_with_parent_pk,
     insert_breadcrumbs_before_last,
     mp_node_breadcrumb_chain,
@@ -365,9 +365,7 @@ class MoveView(TreebeardViewMixin, WagtailAdminTemplateMixin, FormView):
         return items
 
 
-class ReorderChildrenView(
-    TreebeardViewMixin, PermissionCheckedMixin, WagtailAdminTemplateMixin, TemplateView
-):
+class ReorderChildrenView(TreebeardViewMixin, WagtailAdminTemplateMixin, TemplateView):
     """
     Full listing of a node's direct children with drag-and-drop reordering.
 
@@ -375,7 +373,6 @@ class ReorderChildrenView(
     go to :class:`ReorderChildRowView` which applies sibling order via treebeard ``move``.
     """
 
-    permission_required = "change"
     template_name = "wagtail_treebeard/reorder_children.html"
     page_title = _("Reorder children")
 
@@ -396,16 +393,24 @@ class ReorderChildrenView(
             raise ImproperlyConfigured(
                 f"{self.__class__.__name__} must be registered via WagtailTreebeardSnippetViewSet."
             )
-        if not self.user_has_permission_for_instance("change", parent):
+        policy = self.permission_policy
+        perms = parent.permissions_for_user(request.user)
+        if not policy.user_has_permission_for_instance(request.user, "change", parent):
             raise PermissionDenied
-        if parent.numchild == 0:
-            messages.error(request, _("This item has no child nodes to reorder."))
+        if parent.numchild < 2:
+            if parent.numchild == 0:
+                message = _("This item has no child nodes to reorder.")
+            else:
+                message = _("There are not enough child nodes to reorder.")
+            messages.error(request, message)
             if self.index_url_name is None:
                 raise ImproperlyConfigured(
                     f"{self.__class__.__name__} is missing index_url_name."
                 )
-            return redirect(reverse(self.index_url_name))
-        if not parent.permissions_for_user(request.user).can_reorder_children():
+            return redirect(
+                index_url_with_parent_pk(reverse(self.index_url_name), parent.pk)
+            )
+        if not perms.can_reorder_children():
             raise PermissionDenied
         return super().get(request, *args, **kwargs)
 
@@ -438,7 +443,11 @@ class ReorderChildrenView(
         parent, _model, index_url_name, reorder_children_row_url_name = (
             self._registered_reorder_state()
         )
-        children = list(parent.get_children().order_by("path"))
+        children = list(
+            self.permission_policy.changeable_siblings_queryset(
+                self.request.user, parent=parent
+            )
+        )
         context["parent"] = parent
         context["cancel_url"] = reverse(index_url_name)
         context["children_rows"] = [
@@ -473,13 +482,13 @@ class ReorderChildrenView(
         return items
 
 
-class ReorderChildRowView(TreebeardViewMixin, PermissionCheckedMixin, View):
+class ReorderChildRowView(TreebeardViewMixin, View):
     """AJAX handler: one child row moved to a new index (``?position=``), matching snippet reorder."""
 
-    permission_required = "change"
+    index_url_name: str | None = None
     http_method_names = ["post", "head", "options"]
 
-    def post(self, request, *args: Any, **kwargs: Any) -> JsonResponse:
+    def post(self, request, *args: Any, **kwargs: Any):
         parent_pk = str(kwargs["parent_pk"])
         pk = str(kwargs["pk"])
         model = self.model
@@ -488,11 +497,8 @@ class ReorderChildRowView(TreebeardViewMixin, PermissionCheckedMixin, View):
         parent = get_object_or_404(model, pk=unquote(parent_pk))
         item = get_object_or_404(model, pk=unquote(pk))
 
-        if not self.user_has_permission_for_instance("change", parent):
-            raise PermissionDenied
-        if not self.user_has_permission_for_instance("change", item):
-            raise PermissionDenied
-        if not parent.permissions_for_user(request.user).can_reorder_children():
+        policy = self.permission_policy
+        if not policy.user_can_reorder_siblings_at_level(request.user, parent=parent):
             raise PermissionDenied
 
         item_parent = item.get_parent()
@@ -501,7 +507,9 @@ class ReorderChildRowView(TreebeardViewMixin, PermissionCheckedMixin, View):
                 {"success": False, "error": "invalid_child"}, status=400
             )
 
-        siblings = list(parent.get_children().order_by("path"))
+        siblings = list(
+            policy.changeable_siblings_queryset(request.user, parent=parent)
+        )
         pks = [s.pk for s in siblings]
         try:
             current_position = pks.index(item.pk)
@@ -525,6 +533,130 @@ class ReorderChildRowView(TreebeardViewMixin, PermissionCheckedMixin, View):
             return JsonResponse({"success": False, "error": msg}, status=400)
 
         log(instance=parent, action="wagtail.edit", content_changed=True)
+        return JsonResponse({"success": True})
+
+
+class ReorderRootEntriesView(
+    TreebeardViewMixin, WagtailAdminTemplateMixin, TemplateView
+):
+    """
+    Full listing of root-level entries with drag-and-drop reordering.
+
+    Uses the same ``w-orderable`` Stimulus contract as :class:`ReorderChildrenView`; POST requests
+    go to :class:`ReorderRootEntryRowView`.
+    """
+
+    template_name = "wagtail_treebeard/reorder_root_entries.html"
+    page_title = _("Reorder root entries")
+
+    reorder_root_entry_row_url_name: str | None = None
+    index_url_name: str | None = None
+    header_icon = "list-ul"
+    breadcrumbs_items: list | None = None
+
+    def get(self, request, *args: Any, **kwargs: Any):
+        policy = self.permission_policy
+        if self.index_url_name is None:
+            raise ImproperlyConfigured(
+                f"{self.__class__.__name__} is missing index_url_name."
+            )
+        index_url = reverse(self.index_url_name)
+        if not policy.user_has_permission(request.user, "change"):
+            raise PermissionDenied
+        if not policy.user_can_reorder_roots(request.user):
+            messages.error(request, _("There are not enough root entries to reorder."))
+            return redirect(index_url)
+        return super().get(request, *args, **kwargs)
+
+    def _registered_reorder_state(self) -> tuple[type[models.Model], str, str]:
+        if self.index_url_name is None or self.reorder_root_entry_row_url_name is None:
+            raise ImproperlyConfigured(
+                f"{self.__class__.__name__} is missing index or reorder URL names."
+            )
+        return (
+            self.require_model(),
+            self.index_url_name,
+            self.reorder_root_entry_row_url_name,
+        )
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        model, index_url_name, reorder_root_entry_row_url_name = (
+            self._registered_reorder_state()
+        )
+        roots = list(
+            self.permission_policy.changeable_siblings_queryset(self.request.user)
+        )
+        context["cancel_url"] = reverse(index_url_name)
+        context["entry_rows"] = [
+            {"pk_quoted": quote(root.pk), "label": admin_display_title(root)}
+            for root in roots
+        ]
+        context["entry_count"] = len(roots)
+        context["reorder_url"] = reverse(
+            reorder_root_entry_row_url_name,
+            args=[999999],
+        )
+        return context
+
+    def get_breadcrumbs_items(self) -> list[dict[str, str]]:
+        model, index_url_name, _reorder_root_entry_row_url_name = (
+            self._registered_reorder_state()
+        )
+        items: list[dict[str, str]] = list(self.breadcrumbs_items)
+        items.append(
+            {
+                "url": reverse(index_url_name),
+                "label": capfirst(model._meta.verbose_name_plural),
+            }
+        )
+        items.append({"url": "", "label": str(self.get_page_title())})
+        return items
+
+
+class ReorderRootEntryRowView(TreebeardViewMixin, View):
+    """AJAX handler: one root row moved to a new index (``?position=``)."""
+
+    index_url_name: str | None = None
+    http_method_names = ["post", "head", "options"]
+
+    def post(self, request, *args: Any, **kwargs: Any):
+        pk = str(kwargs["pk"])
+        model = self.model
+        if model is None:
+            raise ImproperlyConfigured(f"{self.__class__.__name__} requires a model.")
+        item = get_object_or_404(model, pk=unquote(pk))
+
+        if item.depth != 1:
+            return JsonResponse({"success": False, "error": "invalid_root"}, status=400)
+
+        policy = self.permission_policy
+        if not policy.user_can_reorder_roots(request.user):
+            raise PermissionDenied
+        siblings = list(policy.changeable_siblings_queryset(request.user))
+        pks = [s.pk for s in siblings]
+        try:
+            current_position = pks.index(item.pk)
+        except ValueError:
+            return JsonResponse({"success": False}, status=404)
+
+        try:
+            new_position = int(request.GET.get("position", ""))
+        except ValueError:
+            new_position = -1
+        if new_position < 0 or new_position >= len(pks):
+            new_position = len(pks) - 1
+
+        if new_position == current_position:
+            return JsonResponse({"success": True})
+
+        try:
+            move_mp_root_to_position(item, new_position, siblings=siblings)
+        except ValidationError as exc:
+            msg = exc.error_list[0].message if exc.error_list else str(exc)
+            return JsonResponse({"success": False, "error": msg}, status=400)
+
+        log(instance=item, action="wagtail.edit", content_changed=True)
         return JsonResponse({"success": True})
 
 
@@ -698,19 +830,51 @@ class TreebeardIndexBrowseMixin:
                 self.request.user
             ).can_add_child()
         ):
-            add_child_url = reverse(
+            context["add_url"] = reverse(
                 self.add_child_url_name, args=[quote(self.browse_parent.pk)]
             )
-            context["header_action_url"] = add_child_url
-            context["header_action_label"] = _("Add child")
-            context["add_url"] = add_child_url
         return context
 
 
-class IndexView(TreebeardViewMixin, TreebeardIndexBrowseMixin, snippet_views.IndexView):
+class IndexView(TreebeardIndexBrowseMixin, TreebeardViewMixin, snippet_views.IndexView):
     add_child_url_name: str | None = None
     move_url_name: str | None = None
     reorder_children_url_name: str | None = None
+    reorder_root_entries_url_name: str | None = None
+
+    @cached_property
+    def header_buttons(self):
+        if (
+            self.is_browse_mode
+            and self.browse_parent is None
+            and self.reorder_root_entries_url_name
+            and self.permission_policy.user_can_reorder_roots(self.request.user)
+        ):
+            return [
+                HeaderButton(
+                    _("Reorder root entries"),
+                    url=reverse(self.reorder_root_entries_url_name),
+                    icon_name="list-ul",
+                )
+            ]
+        if (
+            self.is_browse_mode
+            and self.browse_parent is not None
+            and self.add_child_url_name
+            and self.browse_parent.permissions_for_user(
+                self.request.user
+            ).can_add_child()
+        ):
+            return [
+                HeaderButton(
+                    _("Add child"),
+                    url=reverse(
+                        self.add_child_url_name, args=[quote(self.browse_parent.pk)]
+                    ),
+                    icon_name="plus",
+                )
+            ]
+        return super().header_buttons
 
     @cached_property
     def table_class(self):
