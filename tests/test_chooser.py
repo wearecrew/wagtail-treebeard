@@ -86,3 +86,76 @@ class CanChooseRootTests(WagtailTestUtils, TestCase):
             "can_choose_root=1",
             response.context["browse_results_url"],
         )
+
+
+class ChooserBrowseAndSearchTests(WagtailTestUtils, TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.superuser = User.objects.create_superuser(
+            "admin2", "admin2@example.com", "password"
+        )
+        cls.root = TreeNode.add_root(name="Browse root")
+        cls.child = cls.root.add_child(name="Browse child")
+        cls.grandchild = cls.child.add_child(name="Browse grandchild")
+
+    def setUp(self):
+        self.client.force_login(self.superuser)
+
+    def test_browse_children_with_parent_pk(self):
+        response = self.client.get(
+            chooser_results_url(),
+            {"parent_pk": self.root.pk},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Browse child")
+
+    def test_invalid_chooser_mode_defaults_to_choose(self):
+        response = self.client.get(
+            chooser_results_url(),
+            {"chooser_mode": "not-a-mode"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["chooser_mode"].value, ChooserMode.CHOOSE.value)
+
+    def test_parent_for_move_browse_excludes_moved_node(self):
+        response = self.client.get(
+            chooser_results_url(),
+            {
+                "chooser_mode": ChooserMode.PARENT_FOR_MOVE,
+                "move_instance_pk": self.grandchild.pk,
+                "parent_pk": self.child.pk,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Browse grandchild")
+
+    def test_parent_for_move_search_lists_valid_targets(self):
+        other_root = TreeNode.add_root(name="Other root")
+        response = self.client.get(
+            chooser_results_url(),
+            {
+                "chooser_mode": ChooserMode.PARENT_FOR_MOVE,
+                "move_instance_pk": self.grandchild.pk,
+                "q": "Other",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Other root")
+
+    def test_parent_for_move_search_without_instance_returns_404(self):
+        response = self.client.get(
+            chooser_results_url(),
+            {
+                "chooser_mode": ChooserMode.PARENT_FOR_MOVE,
+                "q": "Browse",
+            },
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_choose_mode_search(self):
+        response = self.client.get(
+            chooser_results_url(),
+            {"q": "Browse grand"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Browse grandchild")

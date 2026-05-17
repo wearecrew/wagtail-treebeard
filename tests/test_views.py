@@ -1,12 +1,16 @@
 """Integration tests for treebeard snippet admin views."""
 
+import json
+
 from django.contrib.auth.models import Permission, User
+from django.contrib.admin.utils import quote
 from django.test import TestCase
 from django.urls import reverse
 from wagtail.test.utils import WagtailTestUtils
 
-from testapp.models import TesterLockedNode, TreeNode
+from testapp.models import PolicyRestrictedNode, TesterLockedNode, TreeNode
 from wagtail_treebeard.permission_policy import TreebeardModelPermissionPolicy
+from wagtail_treebeard.utils import INDEX_PARENT_PK_QUERY_PARAM
 
 
 def snippet_url(model: type, view_name: str, *args: object) -> str:
@@ -107,3 +111,155 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Choose a parent")
+
+    def test_confirm_add_position_post_redirects_to_add_child(self):
+        parent = TreeNode.add_root(name="Pick me")
+        url = snippet_url(TreeNode, "add")
+        response = self.client.post(url, {"parent": parent.pk})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            snippet_url(TreeNode, "add_child", parent.pk),
+        )
+
+    def test_index_browse_children_with_parent_pk(self):
+        parent = TreeNode.add_root(name="Index parent")
+        parent.add_child(name="Index child")
+        url = f"{snippet_url(TreeNode, 'list')}?{INDEX_PARENT_PK_QUERY_PARAM}={parent.pk}"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Index child")
+
+    def test_index_search_lists_matching_nodes(self):
+        TreeNode.add_root(name="Findable")
+        url = snippet_url(TreeNode, "list")
+        response = self.client.get(url, {"q": "Find"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Findable")
+
+    def test_index_shows_move_action_for_movable_child(self):
+        root = TreeNode.add_root(name="Move root")
+        child = root.add_child(name="Movable")
+        url = (
+            f"{snippet_url(TreeNode, 'list')}?"
+            f"{INDEX_PARENT_PK_QUERY_PARAM}={root.pk}"
+        )
+        response = self.client.get(url)
+        self.assertContains(response, snippet_url(TreeNode, "move", child.pk))
+
+    def test_move_get_shows_form(self):
+        root = TreeNode.add_root(name="Root")
+        child = root.add_child(name="To move")
+        TreeNode.add_root(name="Target root")
+        response = self.client.get(snippet_url(TreeNode, "move", child.pk))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Choose a new parent")
+
+    def test_move_under_new_parent(self):
+        root = TreeNode.add_root(name="From root")
+        child = root.add_child(name="Moving")
+        target = TreeNode.add_root(name="Target")
+        url = snippet_url(TreeNode, "move", child.pk)
+        response = self.client.post(url, {"new_parent": target.pk})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(child.get_parent(), target)
+
+    def test_move_to_root(self):
+        root = TreeNode.add_root(name="Only root")
+        child = root.add_child(name="Promote me")
+        url = snippet_url(TreeNode, "move", child.pk)
+        response = self.client.post(url, {"move_to_root": "1"})
+        self.assertEqual(response.status_code, 302)
+        child.refresh_from_db()
+        self.assertEqual(child.depth, 1)
+
+    def test_reorder_child_row_post(self):
+        parent = TesterLockedNode.add_root(name="Reorder", is_locked=False)
+        first = parent.add_child(name="One")
+        second = parent.add_child(name="Two")
+        url = (
+            reverse(
+                TesterLockedNode.snippet_viewset.get_url_name("reorder_children_row"),
+                args=[quote(parent.pk), quote(second.pk)],
+            )
+            + "?position=0"
+        )
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data["success"])
+        names = list(parent.get_children().values_list("name", flat=True))
+        self.assertEqual(names, ["Two", "One"])
+
+    def test_reorder_child_row_invalid_child(self):
+        parent = TesterLockedNode.add_root(name="Reorder parent", is_locked=False)
+        parent.add_child(name="Own child")
+        other = TesterLockedNode.add_root(name="Other", is_locked=False)
+        stray = other.add_child(name="Stray")
+        url = reverse(
+            TesterLockedNode.snippet_viewset.get_url_name("reorder_children_row"),
+            args=[quote(parent.pk), quote(stray.pk)],
+        )
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(json.loads(response.content)["success"])
+
+    def test_reorder_children_redirects_when_no_children(self):
+        parent = TesterLockedNode.add_root(name="Empty", is_locked=False)
+        url = snippet_url(TesterLockedNode, "reorder_children", parent.pk)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], snippet_url(TesterLockedNode, "list"))
+
+    def test_edit_view_includes_ancestor_breadcrumbs(self):
+        root = TreeNode.add_root(name="Crumb root")
+        child = root.add_child(name="Crumb child")
+        response = self.client.get(snippet_url(TreeNode, "edit", child.pk))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Crumb root")
+
+    def test_delete_leaf_post(self):
+        node = TreeNode.add_root(name="Delete me")
+        url = snippet_url(TreeNode, "delete", node.pk)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(TreeNode.objects.filter(pk=node.pk).exists())
+
+    def test_create_root_denied_without_add_root_permission(self):
+        self.client.force_login(self.editor)
+        url = snippet_url(TreeNode, "add_root")
+        response = self.client.post(url, {"name": "Nope"})
+        assert_admin_permission_denied(self, response)
+
+
+class ConfirmAddRedirectTests(WagtailTestUtils, TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("adder", "adder@example.com", "password")
+        access_admin = Permission.objects.get(
+            codename="access_admin",
+            content_type__app_label="wagtailadmin",
+            content_type__model="admin",
+        )
+        add_perm = Permission.objects.get(
+            codename="add_policyrestrictednode",
+            content_type__app_label="testapp",
+            content_type__model="policyrestrictednode",
+        )
+        add_root_perm = Permission.objects.get(
+            codename="add_root",
+            content_type__app_label="testapp",
+            content_type__model="policyrestrictednode",
+        )
+        cls.user.user_permissions.add(access_admin, add_perm, add_root_perm)
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_add_redirects_to_add_root_when_no_valid_parents(self):
+        url = snippet_url(PolicyRestrictedNode, "add")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            snippet_url(PolicyRestrictedNode, "add_root"),
+        )

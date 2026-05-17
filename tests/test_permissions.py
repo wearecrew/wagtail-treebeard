@@ -1,5 +1,8 @@
 from django.contrib.auth.models import Permission, User
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+
+from wagtail_treebeard.constants import ADD_ROOT_PERMISSION_LABEL
 
 from testapp.models import (
     CombinedCustomNode,
@@ -245,3 +248,76 @@ class CombinedCustomOverridesTests(TestCase):
         self.assertFalse(child_perms.can_move_to(self.parent))  # current parent
         self.assertFalse(child_perms.can_move_to(self.no_children))
         self.assertFalse(self.locked.permissions_for_user(self.user).can_move())
+
+
+class TreebeardModelPermissionPolicyTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.policy = TreeNode.permission_policy
+        cls.add_only = User.objects.create_user("addonly", "addonly@example.com", "p")
+        cls.change_only = User.objects.create_user(
+            "changeonly", "changeonly@example.com", "p"
+        )
+        cls.add_root_user = User.objects.create_user(
+            "rooter", "rooter@example.com", "p"
+        )
+        cls.add_perm = Permission.objects.get(
+            codename="add_treenode",
+            content_type__app_label="testapp",
+            content_type__model="treenode",
+        )
+        cls.change_perm = Permission.objects.get(
+            codename="change_treenode",
+            content_type__app_label="testapp",
+            content_type__model="treenode",
+        )
+        cls.add_root_perm, _ = Permission.objects.get_or_create(
+            codename="add_root",
+            content_type=ContentType.objects.get_for_model(TreeNode),
+            defaults={"name": str(ADD_ROOT_PERMISSION_LABEL)},
+        )
+        cls.add_only.user_permissions.add(cls.add_perm)
+        cls.change_only.user_permissions.add(cls.change_perm)
+        cls.add_root_user.user_permissions.add(cls.add_perm, cls.add_root_perm)
+
+        cls.root = TreeNode.add_root(name="Root")
+        cls.child = cls.root.add_child(name="Child")
+
+    def test_instances_user_can_add_children_to_empty_without_add(self):
+        qs = self.policy.instances_user_can_add_children_to(self.change_only)
+        self.assertEqual(qs.count(), 0)
+
+    def test_instances_user_can_move_to_empty_without_change(self):
+        qs = self.policy.instances_user_can_move_to(self.add_only, self.child)
+        self.assertEqual(qs.count(), 0)
+
+    def test_instances_user_can_move_to_excludes_self_and_parent(self):
+        qs = self.policy.instances_user_can_move_to(self.change_only, self.child)
+        pks = set(qs.values_list("pk", flat=True))
+        self.assertNotIn(self.child.pk, pks)
+        self.assertNotIn(self.root.pk, pks)
+
+    def test_user_can_add_root_requires_add_root_permission_when_registered(self):
+        self.assertFalse(self.policy.user_can_add_root(self.add_only))
+        self.assertTrue(self.policy.user_can_add_root(self.add_root_user))
+
+    def test_tester_denies_move_without_change_permission(self):
+        perms = self.child.permissions_for_user(self.add_only)
+        self.assertFalse(perms.can_move())
+        self.assertFalse(perms.can_move_to(self.root))
+        self.assertFalse(perms.can_add_child())
+        self.assertFalse(perms.can_reorder_children())
+
+    def test_tester_denies_reorder_without_change_permission(self):
+        parent = TreeNode.add_root(name="Reorder parent")
+        parent.add_child(name="A")
+        parent.add_child(name="B")
+        perms = parent.permissions_for_user(self.add_only)
+        self.assertFalse(perms.can_reorder_children())
+
+    def test_tester_allows_reorder_with_change_permission(self):
+        parent = TreeNode.add_root(name="Reorder parent 2")
+        parent.add_child(name="A")
+        parent.add_child(name="B")
+        perms = parent.permissions_for_user(self.change_only)
+        self.assertTrue(perms.can_reorder_children())

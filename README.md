@@ -1,8 +1,8 @@
 # wagtail-treebeard
 
-[![Lint](https://github.com/torchbox/wagtail-treebeard/actions/workflows/lint.yml/badge.svg)](https://github.com/torchbox/wagtail-treebeard/actions/workflows/lint.yml)
-[![Test](https://github.com/torchbox/wagtail-treebeard/actions/workflows/test.yml/badge.svg)](https://github.com/torchbox/wagtail-treebeard/actions/workflows/test.yml)
-[![Nightly Wagtail main](https://github.com/torchbox/wagtail-treebeard/actions/workflows/nightly.yml/badge.svg)](https://github.com/torchbox/wagtail-treebeard/actions/workflows/nightly.yml)
+[![Lint](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/lint.yml/badge.svg)](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/lint.yml)
+[![Test](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/test.yml/badge.svg)](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/test.yml)
+[![Nightly Wagtail main](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/nightly.yml/badge.svg)](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/nightly.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 An add-on for managing treebeard `MP_Node`-based snippet models in Wagtail.
@@ -15,7 +15,7 @@ Requires **Wagtail 7.3+** (snippet reorder, `set_max_order`, and viewset URL hel
 ## Supported versions
 
 - Python 3.12, 3.13, 3.14
-- Django 4.2, 5.0, 5.2, 6.0 (see [Wagtail’s compatibility table](https://docs.wagtail.org/en/stable/releases/upgrading.html#compatible-django-python-versions) for each Wagtail release)
+- Django 5.2, 6.0 (see [Wagtail’s compatibility table](https://docs.wagtail.org/en/stable/releases/upgrading.html#compatible-django-python-versions) for each Wagtail release)
 - **Minimum** Wagtail 7.3; **LTS** [7.4](https://docs.wagtail.org/en/stable/releases/7.4.html) (see the [release index](https://docs.wagtail.org/en/stable/releases/index.html))
 - CI tests **7.3** and **7.4** on supported Django/Python pairs, plus **Wagtail `main`** nightly (see [package guidelines](https://github.com/wagtail/wagtail/blob/main/docs/contributing/package_guidelines.md))
 
@@ -275,8 +275,8 @@ make test-future      # Wagtail main
 Single environment:
 
 ```bash
-tox -e py3.12-django4.2-wagtail74
-tox -e py3.13-django5.2-wagtail74
+tox -e py3.12-django5.2-wagtail74
+tox -e py3.13-django6.0-wagtail74
 ```
 
 Interactive test project (superuser `admin` / `changeme`):

@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   wagtail-main:
-    if: ${{ github.repository == 'torchbox/wagtail-treebeard' }}
+    if: ${{ github.repository == 'wearecrew/wagtail-treebeard' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

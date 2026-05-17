@@ -720,7 +720,6 @@ class IndexView(TreebeardViewMixin, TreebeardIndexBrowseMixin, snippet_views.Ind
                 self._get_title_column(
                     "__str__",
                     label=_("Title"),
-                    get_title_id=lambda instance: f"snippet_{quote(instance.pk)}_title",
                 ),
                 WagtailTreebeardExploreNavigateColumn(
                     "navigate", label="", width="10%"
