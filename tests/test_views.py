@@ -168,6 +168,14 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         self.assertContains(response, snippet_explore_url(TreeNode, root.pk))
         self.assertContains(response, "Crumb child")
 
+    def test_index_explore_listing_includes_row_action_menu(self):
+        root = TreeNode.add_root(name="Actions root")
+        child = root.add_child(name="Actions child")
+        response = self.client.get(snippet_explore_url(TreeNode, root.pk))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "icon-dots-horizontal")
+        self.assertContains(response, snippet_url(TreeNode, "move", child.pk))
+
     def test_move_get_shows_form(self):
         root = TreeNode.add_root(name="Root")
         child = root.add_child(name="To move")

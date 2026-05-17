@@ -21,7 +21,7 @@ from wagtail.admin.views.generic.chooser import (
 )
 from wagtail.snippets.views.chooser import BaseSnippetChooseView
 
-from wagtail_treebeard.utils import admin_display_title
+from wagtail_treebeard.utils import admin_display_title, mp_node_breadcrumb_ancestor_list
 
 from .constants import PRESERVED_CHOOSER_PARAMS, ChooserMode
 
@@ -209,7 +209,7 @@ class ChooseResultsMixin:
         context = super().get_context_data(**kwargs)
         context["preserved_get_params"] = self.get_preserved_get_params()
         browse_ancestors = (
-            list(self.browse_parent.get_ancestors())
+            mp_node_breadcrumb_ancestor_list(self.browse_parent)
             if self.browse_parent is not None
             else []
         )

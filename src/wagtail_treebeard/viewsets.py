@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.core.exceptions import ImproperlyConfigured
+from django.db import models
 from django.forms.models import modelform_factory
 from django.urls import path
 from treebeard.mp_tree import MP_Node
@@ -22,7 +23,10 @@ from wagtail.snippets.views import snippets as snippet_views
 from wagtail_treebeard.choosers import ChooserViewSet
 from wagtail_treebeard.forms import WagtailTreebeardAdminModelForm
 from wagtail_treebeard.models import TreebeardMixin
-from wagtail_treebeard.utils import model_supports_manual_ordering
+from wagtail_treebeard.utils import (
+    get_breadcrumb_ancestor_queryset,
+    model_supports_manual_ordering,
+)
 from wagtail_treebeard.views import (
     ConfirmAddPositionView,
     CreateView,
@@ -74,6 +78,15 @@ class WagtailTreebeardSnippetViewSet(snippet_views.SnippetViewSet):
     @property
     def permission_policy(self):
         return self.model.permission_policy
+
+    @classmethod
+    def get_breadcrumb_ancestors(cls, node: models.Model):
+        """
+        Ancestors for breadcrumb UI, optionally narrowed via :attr:`~wagtail_treebeard.models.TreebeardMixin.breadcrumb_title_fields`.
+
+        Same ordering as :meth:`~treebeard.mp_tree.MP_Node.get_ancestors`.
+        """
+        return get_breadcrumb_ancestor_queryset(node)
 
     def get_exclude_form_fields(self):
         exclude = list(super().get_exclude_form_fields() or [])

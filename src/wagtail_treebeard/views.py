@@ -39,6 +39,7 @@ from wagtail_treebeard.utils import (
     insert_breadcrumbs_before_last,
     move_mp_child_to_position,
     move_mp_root_to_position,
+    mp_node_breadcrumb_ancestor_list,
     mp_node_breadcrumb_chain,
     mp_node_explore_breadcrumb_items,
 )
@@ -221,7 +222,7 @@ class EditView(TreebeardViewMixin, snippet_views.EditView):
         if self.object is None:
             return items
         extra = mp_node_explore_breadcrumb_items(
-            list(self.object.get_ancestors()),
+            mp_node_breadcrumb_ancestor_list(self.object),
             explore_url_name=self.index_explore_url_name,
         )
         return insert_breadcrumbs_before_last(items, extra)
@@ -858,7 +859,7 @@ class TreebeardIndexBrowseMixin:
                         ),
                         "label": admin_display_title(node),
                     }
-                    for node in self.browse_parent.get_ancestors()
+                    for node in mp_node_breadcrumb_ancestor_list(self.browse_parent)
                 ],
                 {
                     "url": "",
@@ -883,7 +884,7 @@ class TreebeardIndexBrowseMixin:
         else:
             browse_index_url = self.get_index_url()
         browse_ancestors = (
-            list(self.browse_parent.get_ancestors())
+            mp_node_breadcrumb_ancestor_list(self.browse_parent)
             if self.browse_parent is not None
             else []
         )
@@ -928,7 +929,8 @@ class IndexView(TreebeardIndexBrowseMixin, TreebeardViewMixin, snippet_views.Ind
     reorder_root_entries_url_name: str | None = None
 
     def _treebeard_title_column(self) -> TitleColumn:
-        return TitleColumn(
+        column_class = self._get_title_column_class(TitleColumn)
+        return column_class(
             "title",
             label=_("Title"),
             accessor=admin_display_title,
@@ -966,7 +968,7 @@ class IndexView(TreebeardIndexBrowseMixin, TreebeardViewMixin, snippet_views.Ind
             if self.reorder_children_url_name and perms.can_reorder_children():
                 buttons.append(
                     HeaderButton(
-                        _("Reorder"),
+                        _("Reorder children"),
                         url=reverse(
                             self.reorder_children_url_name,
                             args=[quote(self.browse_parent.pk)],

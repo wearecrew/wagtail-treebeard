@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.contrib.admin.utils import quote
-from django.core.exceptions import ValidationError
+from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db import models, transaction
 from django.db.models import Case, F, Value, When
 from django.db.models.functions import Concat, Substr
@@ -40,9 +40,126 @@ def admin_display_title(instance: models.Model) -> str:
     return str(instance)
 
 
+_MP_BREADCRUMB_METADATA_FIELD_NAMES = ("path", "depth", "numchild")
+
+
+def breadcrumb_title_lookup_error_message(
+    model: type[models.Model], lookup: str
+) -> str | None:
+    """Return an error message when ``lookup`` is invalid for ``breadcrumb_title_fields``."""
+    label = model._meta.label
+    current_model: type[models.Model] = model
+    parts = lookup.split("__")
+    for index, part in enumerate(parts):
+        try:
+            field = current_model._meta.get_field(part)
+        except FieldDoesNotExist:
+            return (
+                f"{label}: breadcrumb_title_fields contains unknown lookup "
+                f"{lookup!r} (failed on {part!r})."
+            )
+        if index == len(parts) - 1:
+            return None
+        if not field.is_relation or field.many_to_many:
+            return (
+                f"{label}: breadcrumb_title_fields lookup {lookup!r} cannot "
+                f"traverse {part!r} with select_related (use forward ForeignKey "
+                f"or OneToOne paths only)."
+            )
+        related_model = field.remote_field.model
+        if related_model is None:
+            return (
+                f"{label}: breadcrumb_title_fields lookup {lookup!r} has "
+                f"non-relational segment {part!r}."
+            )
+        current_model = related_model
+    return None
+
+
+def _breadcrumb_title_select_related_path(lookup: str) -> str | None:
+    if "__" not in lookup:
+        return None
+    parts = lookup.split("__")
+    if len(parts) < 2:
+        return None
+    return "__".join(parts[:-1])
+
+
+def breadcrumb_title_select_related_paths(
+    model: type[models.Model],
+) -> tuple[str, ...]:
+    """``select_related`` paths implied by :attr:`~wagtail_treebeard.models.TreebeardMixin.breadcrumb_title_fields`."""
+    title_fields = getattr(model, "breadcrumb_title_fields", None)
+    if not title_fields:
+        return ()
+    paths: list[str] = []
+    seen: set[str] = set()
+    for lookup in title_fields:
+        path = _breadcrumb_title_select_related_path(lookup)
+        if path is None or path in seen:
+            continue
+        seen.add(path)
+        paths.append(path)
+    return tuple(paths)
+
+
+def breadcrumb_title_only_field_names(
+    model: type[models.Model],
+) -> tuple[str, ...] | None:
+    """
+    Column names for ``QuerySet.only()`` when loading breadcrumb ancestors.
+
+    Returns ``None`` when :attr:`~wagtail_treebeard.models.TreebeardMixin.breadcrumb_title_fields`
+    is unset (load full rows). Otherwise the primary key, MP metadata, and configured fields.
+    """
+    title_fields = getattr(model, "breadcrumb_title_fields", None)
+    if title_fields is None:
+        return None
+    names: list[str] = [
+        model._meta.pk.name,
+        *_MP_BREADCRUMB_METADATA_FIELD_NAMES,
+        *title_fields,
+    ]
+    seen: set[str] = set()
+    result: list[str] = []
+    for name in names:
+        if name in seen:
+            continue
+        if name in _MP_BREADCRUMB_METADATA_FIELD_NAMES or name == model._meta.pk.name:
+            model._meta.get_field(name)
+        seen.add(name)
+        result.append(name)
+    return tuple(result)
+
+
+def get_breadcrumb_ancestor_queryset(node: models.Model):
+    """
+    Ancestors for breadcrumb UI, optionally narrowed via ``breadcrumb_title_fields``.
+
+    Same ordering as :meth:`~treebeard.mp_tree.MP_Node.get_ancestors`.
+    """
+    model = node.__class__
+    queryset = node.get_ancestors()
+    only_fields = breadcrumb_title_only_field_names(model)
+    if only_fields is not None:
+        select_related = breadcrumb_title_select_related_paths(model)
+        if select_related:
+            queryset = queryset.select_related(*select_related)
+        queryset = queryset.only(*only_fields)
+    return queryset
+
+
+def mp_node_breadcrumb_ancestor_list(node: models.Model) -> list[models.Model]:
+    """Ancestors root-to-parent for breadcrumb UI (via the registered snippet viewset when present)."""
+    viewset = getattr(node.__class__, "snippet_viewset", None)
+    if viewset is not None:
+        return list(viewset.get_breadcrumb_ancestors(node))
+    return list(node.get_ancestors())
+
+
 def mp_node_breadcrumb_chain(node: models.Model) -> list[models.Model]:
     """Ancestors root-to-parent, then ``node`` (for tree admin breadcrumbs)."""
-    return list(node.get_ancestors()) + [node]
+    return [*mp_node_breadcrumb_ancestor_list(node), node]
 
 
 def mp_node_edit_breadcrumb_items(

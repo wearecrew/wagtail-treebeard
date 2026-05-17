@@ -1,21 +1,106 @@
 from django.core.exceptions import ValidationError
+from django.db import models
 from django.test import SimpleTestCase, TestCase
 from treebeard.mp_tree import MP_Node
 
-from testapp.models import TreeNode
+from wagtail_treebeard.checks import (
+    _breadcrumb_title_fields_errors,
+    check_breadcrumb_title_fields,
+)
+from wagtail_treebeard.models import TreebeardMixin
+
+from testapp.models import (
+    BreadcrumbGroup,
+    BreadcrumbRelatedTreeNode,
+    PolicyRestrictedNode,
+    TesterLockedNode,
+    TreeNode,
+)
 from wagtail_treebeard.utils import (
     admin_display_title,
     apply_mp_root_sibling_order,
     apply_mp_sibling_order,
+    breadcrumb_title_only_field_names,
+    breadcrumb_title_select_related_paths,
     insert_breadcrumbs_before_last,
     model_supports_manual_ordering,
     move_mp_child_to_position,
     move_mp_root_to_position,
+    mp_node_breadcrumb_ancestor_list,
     mp_node_breadcrumb_chain,
     mp_node_edit_breadcrumb_items,
     mp_node_explore_breadcrumb_items,
     reverse_index_explore_url,
 )
+
+
+class BreadcrumbAncestorQuerysetTests(TestCase):
+    def test_breadcrumb_title_only_field_names_none_when_unset(self) -> None:
+        self.assertIsNone(breadcrumb_title_only_field_names(TesterLockedNode))
+
+    def test_breadcrumb_title_only_field_names_includes_pk_and_mp_metadata(self) -> None:
+        self.assertEqual(
+            breadcrumb_title_only_field_names(TreeNode),
+            ("id", "path", "depth", "numchild", "name"),
+        )
+
+    def test_get_breadcrumb_ancestors_only_selects_configured_fields(self) -> None:
+        root = PolicyRestrictedNode.add_root(
+            name="Root",
+            accept_children=True,
+            accept_moves_as_target=True,
+        )
+        child = root.add_child(
+            name="Child",
+            accept_children=True,
+            accept_moves_as_target=True,
+        )
+        sql = str(
+            PolicyRestrictedNode.snippet_viewset.get_breadcrumb_ancestors(child).query
+        ).lower()
+        self.assertIn("name", sql)
+        self.assertNotIn("accept_children", sql)
+        self.assertNotIn("accept_moves_as_target", sql)
+
+    def test_breadcrumb_title_select_related_paths_from_lookups(self) -> None:
+        self.assertEqual(
+            breadcrumb_title_select_related_paths(BreadcrumbRelatedTreeNode),
+            ("group",),
+        )
+
+    def test_get_breadcrumb_ancestors_select_related_for_lookup_fields(self) -> None:
+        group = BreadcrumbGroup.objects.create(
+            name="Group label", internal_code="unused"
+        )
+        root = BreadcrumbRelatedTreeNode.add_root(name="Root", group=group)
+        child = root.add_child(name="Child", group=group)
+        sql = str(
+            BreadcrumbRelatedTreeNode.snippet_viewset.get_breadcrumb_ancestors(
+                child
+            ).query
+        ).lower()
+        self.assertIn("group", sql)
+        self.assertIn("name", sql)
+        self.assertNotIn("internal_code", sql)
+
+    def test_breadcrumb_title_fields_check_rejects_many_to_many(self) -> None:
+        class InvalidBreadcrumbNode(TreebeardMixin, MP_Node):
+            breadcrumb_title_fields = ("tags__name",)
+            name = models.CharField(max_length=255)
+            tags = models.ManyToManyField(BreadcrumbGroup)
+
+            class Meta:
+                app_label = "testapp"
+
+        errors = _breadcrumb_title_fields_errors(InvalidBreadcrumbNode)
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].id, "wagtail_treebeard.E003")
+
+    def test_registered_models_pass_breadcrumb_title_fields_check(self) -> None:
+        errors = check_breadcrumb_title_fields(None)
+        for model in (TreeNode, BreadcrumbRelatedTreeNode):
+            model_errors = [e for e in errors if e.obj is model]
+            self.assertEqual(model_errors, [], model)
 
 
 class ReverseIndexExploreUrlTests(TestCase):
@@ -77,6 +162,13 @@ class BreadcrumbHelperTests(SimpleTestCase):
         node = FakeNode()
         chain = mp_node_breadcrumb_chain(node)
         self.assertEqual(chain, ["a", "b", node])
+
+    def test_mp_node_breadcrumb_ancestor_list_falls_back_to_get_ancestors(self):
+        class FakeNode:
+            def get_ancestors(self):
+                return ["a"]
+
+        self.assertEqual(mp_node_breadcrumb_ancestor_list(FakeNode()), ["a"])
 
     def test_mp_node_edit_breadcrumb_items_without_url_name(self):
         self.assertEqual(

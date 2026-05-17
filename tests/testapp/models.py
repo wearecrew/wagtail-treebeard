@@ -9,6 +9,7 @@ from .permissions import LockedNodePermissionTester, RestrictivePlacementPolicy
 class TreeNode(TreebeardMixin, MP_Node):
     """Default policy and tester."""
 
+    breadcrumb_title_fields = ("name",)
     name = models.CharField(max_length=255)
 
     class Meta:
@@ -23,6 +24,7 @@ class PolicyRestrictedNode(TreebeardMixin, MP_Node):
     """Uses :class:`~testapp.permissions.RestrictivePlacementPolicy`."""
 
     permission_policy_class = RestrictivePlacementPolicy
+    breadcrumb_title_fields = ("name",)
 
     name = models.CharField(max_length=255)
     accept_children = models.BooleanField(default=True)
@@ -53,6 +55,34 @@ class TesterLockedNode(TreebeardMixin, MP_Node):
 
     def can_move(self) -> bool:
         return not self.is_locked
+
+
+class BreadcrumbGroup(models.Model):
+    name = models.CharField(max_length=255)
+    internal_code = models.CharField(max_length=50, default="")
+
+
+class BreadcrumbRelatedTreeNode(TreebeardMixin, MP_Node):
+    """For tests of ``breadcrumb_title_fields`` relation lookups."""
+
+    breadcrumb_title_fields = ("group__name",)
+    name = models.CharField(max_length=255)
+    group = models.ForeignKey(
+        BreadcrumbGroup,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="tree_nodes",
+    )
+
+    class Meta:
+        verbose_name = "breadcrumb related tree node"
+        verbose_name_plural = "breadcrumb related tree nodes"
+
+    def get_admin_display_title(self) -> str:
+        if self.group_id:
+            return self.group.name
+        return self.name
 
 
 class CombinedCustomNode(TreebeardMixin, MP_Node):

@@ -2,7 +2,13 @@ from wagtail.snippets.models import register_snippet
 
 from wagtail_treebeard.viewsets import WagtailTreebeardSnippetViewSet
 
-from .models import CombinedCustomNode, PolicyRestrictedNode, TesterLockedNode, TreeNode
+from .models import (
+    BreadcrumbRelatedTreeNode,
+    CombinedCustomNode,
+    PolicyRestrictedNode,
+    TesterLockedNode,
+    TreeNode,
+)
 
 
 class TreeNodeViewSet(WagtailTreebeardSnippetViewSet):
@@ -32,7 +38,15 @@ class CombinedCustomNodeViewSet(WagtailTreebeardSnippetViewSet):
     icon = "cog"
 
 
+class BreadcrumbRelatedTreeNodeViewSet(WagtailTreebeardSnippetViewSet):
+    model = BreadcrumbRelatedTreeNode
+    menu_label = "Breadcrumb related"
+    icon = "folder-open-1"
+    form_fields = ["name", "group"]
+
+
 register_snippet(TreeNode, viewset=TreeNodeViewSet)
 register_snippet(PolicyRestrictedNode, viewset=PolicyRestrictedNodeViewSet)
 register_snippet(TesterLockedNode, viewset=TesterLockedNodeViewSet)
 register_snippet(CombinedCustomNode, viewset=CombinedCustomNodeViewSet)
+register_snippet(BreadcrumbRelatedTreeNode, viewset=BreadcrumbRelatedTreeNodeViewSet)

@@ -50,6 +50,12 @@ class TreebeardMixin(models.Model):
         TreebeardPermissionTester
     )
     register_add_root_permission: ClassVar[bool] = True
+    #: Fields loaded for breadcrumb titles via
+    #: :meth:`~wagtail_treebeard.viewsets.WagtailTreebeardSnippetViewSet.get_breadcrumb_ancestors`
+    #: (plus the primary key and MP metadata). ``None`` disables the optimisation (full rows).
+    #: Use plain field names or lookups such as ``("name", "category__title")``; ``__`` triggers
+    #: ``select_related`` on the ancestor queryset. Validated at startup via Django checks.
+    breadcrumb_title_fields: ClassVar[tuple[str, ...] | None] = None
 
     class Meta:
         abstract = True
