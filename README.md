@@ -1,9 +1,13 @@
 # wagtail-treebeard
 
-[![Ruff](https://github.com/torchbox/wagtail-treebeard/actions/workflows/ruff.yml/badge.svg)](https://github.com/torchbox/wagtail-treebeard/actions/workflows/ruff.yml)
 [![Build status](https://github.com/torchbox/wagtail-treebeard/actions/workflows/test.yml/badge.svg)](https://github.com/torchbox/wagtail-treebeard/actions/workflows/test.yml)
+[![Nightly Wagtail main](https://github.com/torchbox/wagtail-treebeard/actions/workflows/nightly.yml/badge.svg)](https://github.com/torchbox/wagtail-treebeard/actions/workflows/nightly.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 An add-on for managing treebeard `MP_Node`-based snippet models in Wagtail.
+
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
 
 Requires **Wagtail 7.0+** (snippet reorder and related admin APIs used for child reordering).
 
@@ -12,6 +16,7 @@ Requires **Wagtail 7.0+** (snippet reorder and related admin APIs used for child
 - Python 3.11, 3.12, 3.13, 3.14
 - Django 4.2, 5.0, 5.2, 6.0 (see [Wagtail’s compatibility table](https://docs.wagtail.org/en/stable/releases/upgrading.html#compatible-django-python-versions) for each Wagtail release)
 - **Minimum** Wagtail 7.0; **LTS** [7.4](https://docs.wagtail.org/en/stable/releases/7.4.html) (see the [release index](https://docs.wagtail.org/en/stable/releases/index.html))
+- CI tests **7.0** and **7.4** on supported Django/Python pairs, plus **Wagtail `main`** nightly (see [package guidelines](https://github.com/wagtail/wagtail/blob/main/docs/contributing/package_guidelines.md))
 
 ## Installation
 
@@ -257,23 +262,26 @@ Drag-and-drop reordering is available when `MP_Node.node_order_by` is **not** se
 
 ## Development
 
+See [CONTRIBUTING.md](CONTRIBUTING.md). Quick start:
+
 ```bash
-python -Im pip install -U flit tox
-python -Im flit build --format wheel
-tox --installpkg ./dist/*.whl
+python -Im pip install -U flit tox pre-commit
+pre-commit install
+make test-ci          # full matrix
+make test-future      # Wagtail main
 ```
 
-Run a single environment:
+Single environment:
 
 ```bash
-tox -e py3.12-django4.2-wagtail7.4-sqlite
-tox -e py3.13-django5.2-wagtail7.4-sqlite
+tox -e py3.12-django4.2-wagtail74
+tox -e py3.13-django5.2-wagtail74
 ```
 
-Interactive test project (creates a superuser `admin` / `changeme`):
+Interactive test project (superuser `admin` / `changeme`):
 
 ```bash
-tox -e interactive
+make interactive
 ```
 
 ## License

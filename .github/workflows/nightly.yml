@@ -1,0 +1,35 @@
+name: Nightly Wagtail test
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wagtail-main:
+    if: ${{ github.repository == 'torchbox/wagtail-treebeard' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: python -Im pip install --upgrade pip flit tox
+
+      - name: Test against Wagtail main
+        id: test
+        run: tox -e wagtailmain
+
+      - name: Notify Slack on failure
+        if: failure() && steps.test.outcome == 'failure'
+        run: python .github/scripts/report_nightly_build_failure.py
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
