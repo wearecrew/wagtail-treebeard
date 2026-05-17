@@ -1,0 +1,8 @@
+{% load i18n %}
+<td {% if column.classname %}class="{{ column.classname }}"{% endif %}>
+    {% if choose_url %}
+        <a href="{{ choose_url }}" class="title" data-chooser-modal-choice>{{ value }}</a>
+    {% else %}
+        {{ value }}
+    {% endif %}
+</td>

@@ -1,0 +1,14 @@
+{% extends "wagtailsnippets/snippets/index.html" %}
+
+{# Tree snippet listings omit bulk checkboxes (see IndexView.columns); hide the bulk footer too. #}
+{% block bulk_actions %}{% endblock %}
+
+{# Flat search results indent rows via ``WagtailTreebeardTable``; explorer browse lists one level at a time. #}
+{% block extra_css %}
+    {{ block.super }}
+    <style>
+        #listing-results table.listing tbody tr td.title .title-wrapper {
+            padding-inline-start: var(--tree-indent, 0rem);
+        }
+    </style>
+{% endblock %}

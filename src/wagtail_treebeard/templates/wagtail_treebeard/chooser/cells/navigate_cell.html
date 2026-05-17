@@ -1,0 +1,8 @@
+{% load i18n %}
+<td {% if column.classname %}class="{{ column.classname }}"{% endif %}>
+    {% if navigate_url %}
+        <a href="{{ navigate_url }}" class="treebeard-snippet-chooser-navigate button button-small button-secondary" data-parent-pk="{{ instance.pk }}">
+            {% trans "Open" %}
+        </a>
+    {% endif %}
+</td>

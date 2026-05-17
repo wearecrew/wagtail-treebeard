@@ -1,0 +1,15 @@
+{% extends "wagtailadmin/generic/chooser/results.html" %}
+{% load i18n wagtailadmin_tags %}
+
+{% block listing_title %}
+    {% if is_browse_mode %}
+        {% include "wagtail_treebeard/chooser/includes/browse_header.html" %}
+    {% endif %}
+{% endblock %}
+
+{% block no_items_message %}
+    {% if is_browse_mode %}
+        {% include "wagtail_treebeard/chooser/includes/browse_header.html" %}
+    {% endif %}
+    <p>{% trans "There are no results." %}</p>
+{% endblock %}

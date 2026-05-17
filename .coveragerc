@@ -1,0 +1,26 @@
+[run]
+branch = True
+concurrency = multiprocessing, thread
+parallel = True
+source_pkgs = wagtail_treebeard
+omit = **/migrations/*,tests/*,**/templates/*,**/static/*
+
+[paths]
+source = src,.tox/py*/**/site-packages
+
+[report]
+show_missing = True
+ignore_errors = True
+skip_covered = True
+exclude_also =
+    pragma: no cover
+    def __repr__
+    if self.debug
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if __name__ == .__main__.:
+    "if TYPE_CHECKING:",
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod

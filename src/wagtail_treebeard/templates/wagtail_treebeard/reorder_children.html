@@ -1,0 +1,71 @@
+{% extends "wagtailadmin/generic/base.html" %}
+{% load i18n wagtailadmin_tags %}
+
+{% block main_content %}
+    <div class="nice-padding">
+        <p class="help">
+            {% blocktrans trimmed %}
+                Drag rows using the handle to change the order of direct child nodes. Each change is saved immediately.
+            {% endblocktrans %}
+        </p>
+
+        {% if children_rows %}
+            <table
+                class="listing"
+                data-controller="w-orderable"
+                data-w-orderable-active-class="w-orderable--active"
+                data-w-orderable-chosen-class="w-orderable__item--active"
+                data-w-orderable-container-value="tbody"
+                data-w-orderable-message-value="{% trans "'__LABEL__' has been moved successfully." %}"
+                data-w-orderable-url-value="{{ reorder_url }}"
+            >
+                <caption class="w-sr-only">
+                    {% trans "Focus on the drag button and press up or down arrows to move the item, then press enter to submit the change." %}
+                </caption>
+                <thead>
+                    <tr>
+                        <th class="ord">{% icon name="order" classname="default" %} {% trans "Sort" %}</th>
+                        <th>{% trans "Name" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in children_rows %}
+                        <tr
+                            id="item_{{ row.pk_quoted }}"
+                            data-w-orderable-item-id="{{ row.pk_quoted }}"
+                            data-w-orderable-item-label="{{ row.label|escape }}"
+                            data-w-orderable-target="item"
+                        >
+                            <td class="ord">
+                                <button
+                                    class="w-orderable__item__handle button button-small text-replace button--icon"
+                                    type="button"
+                                    aria-live="polite"
+                                    data-w-orderable-target="handle"
+                                    data-action="keydown.up->w-orderable#up:prevent keydown.down->w-orderable#down:prevent keydown.enter->w-orderable#apply"
+                                >
+                                    {% icon name="grip" classname="default" %}
+                                    <span class="w-sr-only">
+                                        {% trans "Drag" %}
+                                        <span>
+                                            {% blocktranslate trimmed with index=forloop.counter total=child_count %}
+                                                Item {{ index }} of {{ total }}
+                                            {% endblocktranslate %}
+                                        </span>
+                                    </span>
+                                </button>
+                            </td>
+                            <td>{{ row.label }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="help">{% trans "This node has no direct children." %}</p>
+        {% endif %}
+
+        <p class="w-mt-6">
+            <a href="{{ cancel_url }}" class="button button-secondary">{% trans "Back to list" %}</a>
+        </p>
+    </div>
+{% endblock %}

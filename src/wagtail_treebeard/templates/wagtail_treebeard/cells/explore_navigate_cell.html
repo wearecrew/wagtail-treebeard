@@ -1,0 +1,18 @@
+{% load i18n wagtailadmin_tags %}
+
+{# Mirrors ``wagtailadmin/pages/listing/_navigation_explore.html``. #}
+<td class="{% if instance.numchild %}children{% else %}no-children{% endif %}">
+    {% if instance.numchild %}
+        <a
+            href="{{ explore_url }}"
+            title="{% blocktrans trimmed with title=instance %}Explore children of '{{ title }}'{% endblocktrans %}"
+            aria-label="{% blocktrans trimmed with title=instance %}Explore children of '{{ title }}'{% endblocktrans %}"
+        >{% icon name="arrow-right" classname="default" %}</a>
+    {% elif add_child_url %}
+        <a
+            href="{{ add_child_url }}"
+            title="{% blocktrans trimmed with title=instance %}Add a child under '{{ title }}'{% endblocktrans %}"
+            aria-label="{% blocktrans trimmed with title=instance %}Add a child under '{{ title }}'{% endblocktrans %}"
+        >{% icon name="plus-inverse" classname="default" %}</a>
+    {% endif %}
+</td>

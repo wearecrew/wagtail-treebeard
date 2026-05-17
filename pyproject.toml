@@ -1,0 +1,62 @@
+[project]
+name = "wagtail-treebeard"
+description = "Wagtail snippet admin for django-treebeard MP_Node (materialised-path) trees"
+authors = [{ name = "Andy Babic", email = "andy.babic@torchbox.com" }]
+readme = "README.md"
+license = { file = "LICENSE" }
+keywords = ["Wagtail", "Django", "treebeard", "snippets", "MP_Node"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.0",
+    "Framework :: Django :: 5.2",
+    "Framework :: Django :: 6.0",
+    "Framework :: Wagtail",
+    "Framework :: Wagtail :: 6",
+    "Framework :: Wagtail :: 7",
+]
+dynamic = ["version"]
+requires-python = ">=3.11"
+dependencies = [
+    "Django>=4.2",
+    "Wagtail>=6.0,<8",
+    "django-treebeard>=4.7",
+]
+
+[project.optional-dependencies]
+testing = [
+    "coverage>=7.0,<8.0",
+    "dj-database-url>=2.1.0,<3.0",
+]
+
+[project.urls]
+Source = "https://github.com/torchbox/wagtail-treebeard"
+Changelog = "https://github.com/torchbox/wagtail-treebeard/blob/main/CHANGELOG.md"
+
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.module]
+name = "wagtail_treebeard"
+
+[tool.flit.sdist]
+exclude = [
+    ".*",
+    "*.db",
+    "*.ini",
+    "*.sqlite3",
+    "tests",
+    "CHANGELOG.md",
+    "ruff.toml",
+]

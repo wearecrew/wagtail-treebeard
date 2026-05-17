@@ -1,0 +1,34 @@
+[lint]
+extend-select = [
+    "B",
+    "C4",
+    "DJ",
+    "E",
+    "F",
+    "FBT",
+    "I",
+    "INT",
+    "PIE",
+    "PGH",
+    "S",
+    "SIM",
+    "W",
+    "YTT",
+    "UP",
+    "RUF100",
+]
+extend-ignore = [
+    "E501",
+]
+fixable = ["C4", "E", "F", "I", "UP"]
+
+[lint.per-file-ignores]
+"tests/**" = ["S106"]
+
+[lint.isort]
+known-first-party = ["src", "wagtail_treebeard", "testapp"]
+lines-between-types = 1
+lines-after-imports = 2
+
+[format]
+docstring-code-format = true

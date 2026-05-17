@@ -1,0 +1,26 @@
+{% extends "wagtailadmin/generic/chooser/chooser.html" %}
+{% load i18n wagtailadmin_tags %}
+
+{% block filter_form %}
+    {% if filter_form.fields %}
+        <form data-chooser-modal-search action="{{ results_url }}" method="GET" novalidate id="treebeard-snippet-chooser-search-form">
+            {% for name, value in preserved_get_params.items %}
+                <input type="hidden" name="{{ name }}" value="{{ value }}">
+            {% endfor %}
+
+            {% for field in filter_form.hidden_fields %}
+                {% if field.name not in preserved_get_params %}
+                    {{ field }}
+                {% endif %}
+            {% endfor %}
+
+            {% if filter_form.visible_fields %}
+                <ul class="fields">
+                    {% for field in filter_form.visible_fields %}
+                        <li>{% formattedfield field %}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </form>
+    {% endif %}
+{% endblock %}

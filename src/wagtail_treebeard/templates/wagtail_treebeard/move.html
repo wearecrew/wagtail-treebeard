@@ -1,0 +1,35 @@
+{% extends "wagtailadmin/generic/base.html" %}
+{% load i18n %}
+
+{% block main_content %}
+    <form method="post" novalidate>
+        {% csrf_token %}
+
+        {% if show_move_to_root %}
+            <p class="w-help-text">
+                <button type="submit" name="move_to_root" value="1" class="button button-secondary">
+                    {% trans "Move to the root level" %}
+                </button>
+            </p>
+        {% endif %}
+
+        {% if user_can_move_to_new_parent %}
+            {% if form.non_field_errors %}
+                <div class="help help-warning">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            {% for field in form %}
+                {% include "wagtailadmin/shared/field.html" with field=field %}
+            {% endfor %}
+
+            <footer class="footer">
+                <button type="submit" class="button">{% trans "Move" %}</button>
+                <a href="{{ cancel_url }}" class="button button-secondary">{% trans "Cancel" %}</a>
+            </footer>
+        {% else %}
+            <footer class="footer">
+                <a href="{{ cancel_url }}" class="button button-secondary">{% trans "Cancel" %}</a>
+            </footer>
+        {% endif %}
+    </form>
+{% endblock %}
