@@ -2,8 +2,8 @@
 
 import json
 
-from django.contrib.auth.models import Permission, User
 from django.contrib.admin.utils import quote
+from django.contrib.auth.models import Permission, User
 from django.test import TestCase
 from django.urls import reverse
 from wagtail.test.utils import WagtailTestUtils
@@ -125,7 +125,9 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
     def test_index_browse_children_with_parent_pk(self):
         parent = TreeNode.add_root(name="Index parent")
         parent.add_child(name="Index child")
-        url = f"{snippet_url(TreeNode, 'list')}?{INDEX_PARENT_PK_QUERY_PARAM}={parent.pk}"
+        url = (
+            f"{snippet_url(TreeNode, 'list')}?{INDEX_PARENT_PK_QUERY_PARAM}={parent.pk}"
+        )
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Index child")
@@ -140,10 +142,7 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
     def test_index_shows_move_action_for_movable_child(self):
         root = TreeNode.add_root(name="Move root")
         child = root.add_child(name="Movable")
-        url = (
-            f"{snippet_url(TreeNode, 'list')}?"
-            f"{INDEX_PARENT_PK_QUERY_PARAM}={root.pk}"
-        )
+        url = f"{snippet_url(TreeNode, 'list')}?{INDEX_PARENT_PK_QUERY_PARAM}={root.pk}"
         response = self.client.get(url)
         self.assertContains(response, snippet_url(TreeNode, "move", child.pk))
 
@@ -160,8 +159,13 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         child = root.add_child(name="Moving")
         target = TreeNode.add_root(name="Target")
         url = snippet_url(TreeNode, "move", child.pk)
-        response = self.client.post(url, {"new_parent": target.pk})
+        response = self.client.post(url, {"new_parent": str(target.pk)})
         self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            snippet_url(TreeNode, "list"),
+        )
+        child.refresh_from_db()
         self.assertEqual(child.get_parent(), target)
 
     def test_move_to_root(self):
@@ -175,7 +179,7 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
 
     def test_reorder_child_row_post(self):
         parent = TesterLockedNode.add_root(name="Reorder", is_locked=False)
-        first = parent.add_child(name="One")
+        parent.add_child(name="One")
         second = parent.add_child(name="Two")
         url = (
             reverse(
@@ -233,6 +237,8 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
 
 
 class ConfirmAddRedirectTests(WagtailTestUtils, TestCase):
+    """Add step redirects to add_root when the user may add roots but no nodes exist yet."""
+
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user("adder", "adder@example.com", "password")
@@ -252,10 +258,12 @@ class ConfirmAddRedirectTests(WagtailTestUtils, TestCase):
             content_type__model="policyrestrictednode",
         )
         cls.user.user_permissions.add(access_admin, add_perm, add_root_perm)
+
     def setUp(self):
         self.client.force_login(self.user)
 
     def test_add_redirects_to_add_root_when_no_valid_parents(self):
+        PolicyRestrictedNode.objects.all().delete()
         url = snippet_url(PolicyRestrictedNode, "add")
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)

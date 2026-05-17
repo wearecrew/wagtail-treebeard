@@ -1,9 +1,10 @@
 from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase
+from treebeard.mp_tree import MP_Node
 
 from testapp.models import TreeNode
-from treebeard.mp_tree import MP_Node
 from wagtail_treebeard.utils import (
+    admin_display_title,
     apply_mp_sibling_order,
     index_url_with_parent_pk,
     insert_breadcrumbs_before_last,
@@ -51,6 +52,18 @@ class ModelSupportsManualOrderingTests(SimpleTestCase):
                 abstract = True
 
         self.assertFalse(model_supports_manual_ordering(OrderedByName))
+
+
+class AdminDisplayTitleTests(TestCase):
+    def test_defaults_to_str(self):
+        node = TreeNode.add_root(name="Shown in admin")
+        self.assertEqual(node.get_admin_display_title(), "Shown in admin")
+        self.assertEqual(admin_display_title(node), "Shown in admin")
+
+    def test_override_used_in_helper(self):
+        node = TreeNode.add_root(name="Public name")
+        node.get_admin_display_title = lambda: "Editor label"  # type: ignore[method-assign]
+        self.assertEqual(admin_display_title(node), "Editor label")
 
 
 class BreadcrumbHelperTests(SimpleTestCase):

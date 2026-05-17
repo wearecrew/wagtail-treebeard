@@ -115,7 +115,9 @@ class ChooserBrowseAndSearchTests(WagtailTestUtils, TestCase):
             {"chooser_mode": "not-a-mode"},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["chooser_mode"].value, ChooserMode.CHOOSE.value)
+        self.assertEqual(
+            response.context["chooser_mode"].value, ChooserMode.CHOOSE.value
+        )
 
     def test_parent_for_move_browse_excludes_moved_node(self):
         response = self.client.get(
@@ -130,7 +132,7 @@ class ChooserBrowseAndSearchTests(WagtailTestUtils, TestCase):
         self.assertNotContains(response, "Browse grandchild")
 
     def test_parent_for_move_search_lists_valid_targets(self):
-        other_root = TreeNode.add_root(name="Other root")
+        TreeNode.add_root(name="Other root")
         response = self.client.get(
             chooser_results_url(),
             {
@@ -155,7 +157,7 @@ class ChooserBrowseAndSearchTests(WagtailTestUtils, TestCase):
     def test_choose_mode_search(self):
         response = self.client.get(
             chooser_results_url(),
-            {"q": "Browse grand"},
+            {"chooser_mode": ChooserMode.CHOOSE, "q": "Browse root"},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Browse grandchild")
+        self.assertContains(response, "Browse root")

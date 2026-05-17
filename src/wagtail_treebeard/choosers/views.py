@@ -17,6 +17,8 @@ from wagtail.admin.ui.tables import Column, Table
 from wagtail.admin.views.generic.chooser import ChooseResultsViewMixin, ChooseViewMixin
 from wagtail.snippets.views.chooser import BaseSnippetChooseView
 
+from wagtail_treebeard.utils import admin_display_title
+
 from .constants import PRESERVED_CHOOSER_PARAMS, ChooserMode
 
 
@@ -152,7 +154,7 @@ class ChooseResultsMixin:
             BrowseTitleColumn(
                 "title",
                 label=_("Title"),
-                accessor=str,
+                accessor=admin_display_title,
                 chooser_view=self,
             ),
             NavigateColumn(
@@ -200,7 +202,7 @@ class ChooseResultsMixin:
                 "browse_ancestors": browse_ancestors,
                 "browse_ancestor_links": [
                     {
-                        "label": str(node),
+                        "label": admin_display_title(node),
                         "url": self.get_browse_results_url(parent_pk=node.pk),
                         "pk": node.pk,
                     }

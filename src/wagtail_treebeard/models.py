@@ -87,6 +87,15 @@ class TreebeardMixin(models.Model):
             policy = self.permission_policy
         return self.permission_tester_class(user, self, policy)
 
+    def get_admin_display_title(self) -> str:
+        """
+        Label for this node in Wagtail tree admin UI (index browse, chooser, breadcrumbs).
+
+        Defaults to :meth:`~django.db.models.Model.__str__`. Override when the public
+        ``__str__`` should differ from what editors see while navigating the tree.
+        """
+        return str(self)
+
     @classproperty
     def permission_policy(cls) -> TreebeardPermissionPolicyMixin:
         """

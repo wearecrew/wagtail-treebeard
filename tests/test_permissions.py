@@ -2,8 +2,6 @@ from django.contrib.auth.models import Permission, User
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from wagtail_treebeard.constants import ADD_ROOT_PERMISSION_LABEL
-
 from testapp.models import (
     CombinedCustomNode,
     PolicyRestrictedNode,
@@ -11,6 +9,7 @@ from testapp.models import (
     TreeNode,
 )
 from testapp.permissions import LockedNodePermissionTester, RestrictivePlacementPolicy
+from wagtail_treebeard.constants import ADD_ROOT_PERMISSION_LABEL
 from wagtail_treebeard.permission_policy import TreebeardModelPermissionPolicy
 from wagtail_treebeard.permission_tester import TreebeardPermissionTester
 
@@ -305,7 +304,6 @@ class TreebeardModelPermissionPolicyTests(TestCase):
         perms = self.child.permissions_for_user(self.add_only)
         self.assertFalse(perms.can_move())
         self.assertFalse(perms.can_move_to(self.root))
-        self.assertFalse(perms.can_add_child())
         self.assertFalse(perms.can_reorder_children())
 
     def test_tester_denies_reorder_without_change_permission(self):

@@ -108,5 +108,6 @@ class TreebeardModelPermissionPolicy(
             return False
         if self._model_has_add_root_permission:
             # Custom Meta permission uses codename ``add_root``, not ``add_root_<model>``.
-            return self.user_has_permission(user, ADD_ROOT_PERMISSION_CODENAME)
+            opts = self.model._meta
+            return user.has_perm(f"{opts.app_label}.{ADD_ROOT_PERMISSION_CODENAME}")
         return True

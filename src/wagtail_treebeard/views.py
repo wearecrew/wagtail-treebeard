@@ -35,6 +35,7 @@ from wagtail_treebeard.forms import (
 )
 from wagtail_treebeard.utils import (
     INDEX_PARENT_PK_QUERY_PARAM,
+    admin_display_title,
     apply_mp_sibling_order,
     index_url_with_parent_pk,
     insert_breadcrumbs_before_last,
@@ -313,7 +314,8 @@ class MoveView(TreebeardViewMixin, WagtailAdminTemplateMixin, FormView):
             return redirect(self.request.path)
         messages.success(
             self.request,
-            _("Moved '%(title)s' to the root level.") % {"title": str(object_to_move)},
+            _("Moved '%(title)s' to the root level.")
+            % {"title": admin_display_title(object_to_move)},
         )
         return redirect(reverse(index_url_name))
 
@@ -335,7 +337,10 @@ class MoveView(TreebeardViewMixin, WagtailAdminTemplateMixin, FormView):
         messages.success(
             self.request,
             _("Moved '%(title)s' under '%(parent)s'.")
-            % {"title": str(object_to_move), "parent": str(new_parent)},
+            % {
+                "title": admin_display_title(object_to_move),
+                "parent": admin_display_title(new_parent),
+            },
         )
         return redirect(reverse(index_url_name))
 
@@ -406,7 +411,7 @@ class ReorderChildrenView(
 
     def get_page_subtitle(self) -> str:
         if self.parent is not None:
-            return str(self.parent)
+            return admin_display_title(self.parent)
         return ""
 
     def _registered_reorder_state(
@@ -437,7 +442,8 @@ class ReorderChildrenView(
         context["parent"] = parent
         context["cancel_url"] = reverse(index_url_name)
         context["children_rows"] = [
-            {"pk_quoted": quote(c.pk), "label": str(c)} for c in children
+            {"pk_quoted": quote(c.pk), "label": admin_display_title(c)}
+            for c in children
         ]
         context["child_count"] = len(children)
         context["reorder_url"] = reverse(
@@ -578,6 +584,7 @@ class WagtailTreebeardExploreNavigateColumn(Column):
         request = parent_context["request"]
         perms = instance.permissions_for_user(request.user)
         context["node_perms"] = perms
+        context["admin_title"] = admin_display_title(instance)
         if instance.numchild > 0:
             base_url = parent_context["index_url"].split("?")[0]
             context["explore_url"] = index_url_with_parent_pk(base_url, instance.pk)
@@ -638,7 +645,7 @@ class TreebeardIndexBrowseMixin:
 
     def get_page_subtitle(self) -> str:
         if self.is_browse_mode and self.browse_parent is not None:
-            return str(self.browse_parent)
+            return admin_display_title(self.browse_parent)
         return super().get_page_subtitle()
 
     def get_breadcrumbs_items(self) -> list[dict[str, Any]]:
@@ -649,7 +656,7 @@ class TreebeardIndexBrowseMixin:
         explore_chain = [
             {
                 "url": index_url_with_parent_pk(index_url, node.pk),
-                "label": str(node),
+                "label": admin_display_title(node),
             }
             for node in self.browse_parent.get_ancestors()
         ]
@@ -657,7 +664,10 @@ class TreebeardIndexBrowseMixin:
 
     def get_table_kwargs(self):
         kwargs = super().get_table_kwargs()
-        kwargs["tree_indent"] = not self.is_browse_mode
+        if self.is_browse_mode:
+            kwargs.pop("tree_indent", None)
+        else:
+            kwargs["tree_indent"] = True
         return kwargs
 
     def get_context_data(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
@@ -674,7 +684,7 @@ class TreebeardIndexBrowseMixin:
                 "browse_parent": self.browse_parent,
                 "browse_ancestor_links": [
                     {
-                        "label": str(node),
+                        "label": admin_display_title(node),
                         "url": index_url_with_parent_pk(index_url, node.pk),
                         "pk": node.pk,
                     }
@@ -717,10 +727,7 @@ class IndexView(TreebeardViewMixin, TreebeardIndexBrowseMixin, snippet_views.Ind
     def columns(self):
         if self.is_browse_mode:
             return [
-                self._get_title_column(
-                    "__str__",
-                    label=_("Title"),
-                ),
+                self._get_title_column("get_admin_display_title"),
                 WagtailTreebeardExploreNavigateColumn(
                     "navigate", label="", width="10%"
                 ),

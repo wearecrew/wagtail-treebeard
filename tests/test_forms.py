@@ -21,7 +21,9 @@ class WagtailTreebeardAdminModelFormTests(TestCase):
 
 class ConfirmAddPositionFormTests(TestCase):
     def test_parent_field_uses_treebeard_chooser(self):
-        form = ConfirmAddPositionForm(model=TreeNode, parent_queryset=TreeNode.objects.none())
+        form = ConfirmAddPositionForm(
+            model=TreeNode, parent_queryset=TreeNode.objects.none()
+        )
         widget = form.fields["parent"].widget
         self.assertEqual(widget.__class__.__name__, "TreebeardParentChooser")
 

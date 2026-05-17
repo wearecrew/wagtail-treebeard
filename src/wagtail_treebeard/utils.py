@@ -35,6 +35,14 @@ def model_supports_manual_ordering(model: type[MP_Node]) -> bool:
     return not getattr(model, "node_order_by", None)
 
 
+def admin_display_title(instance: models.Model) -> str:
+    """Resolve the admin tree label for ``instance`` (see :meth:`~wagtail_treebeard.models.TreebeardMixin.get_admin_display_title`)."""
+    get_title = getattr(instance, "get_admin_display_title", None)
+    if get_title is not None:
+        return get_title()
+    return str(instance)
+
+
 def mp_node_breadcrumb_chain(node: models.Model) -> list[models.Model]:
     """Ancestors root-to-parent, then ``node`` (for tree admin breadcrumbs)."""
     return list(node.get_ancestors()) + [node]
@@ -48,7 +56,10 @@ def mp_node_edit_breadcrumb_items(
     if not edit_url_name:
         return []
     return [
-        {"url": reverse(edit_url_name, args=(quote(node.pk),)), "label": str(node)}
+        {
+            "url": reverse(edit_url_name, args=(quote(node.pk),)),
+            "label": admin_display_title(node),
+        }
         for node in chain
     ]
 
