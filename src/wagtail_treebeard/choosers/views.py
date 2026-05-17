@@ -21,7 +21,10 @@ from wagtail.admin.views.generic.chooser import (
 )
 from wagtail.snippets.views.chooser import BaseSnippetChooseView
 
-from wagtail_treebeard.utils import admin_display_title, mp_node_breadcrumb_ancestor_list
+from wagtail_treebeard.utils import (
+    admin_display_title,
+    mp_node_breadcrumb_ancestor_list,
+)
 
 from .constants import PRESERVED_CHOOSER_PARAMS, ChooserMode
 

@@ -1,0 +1,23 @@
+{% extends 'wagtailsnippets/bulk_actions/confirm_bulk_delete.html' %}
+{% load i18n %}
+
+{% block items_with_no_access %}
+    {% if items_with_children %}
+        {% if items_with_children|length == 1 %}
+            {% blocktrans with snippet_type_name=model_opts.verbose_name trimmed asvar skipped_msg %}
+                The following {{ snippet_type_name }} has child nodes and will not be deleted:
+            {% endblocktrans %}
+        {% else %}
+            {% blocktrans with snippet_plural_name=model_opts.verbose_name_plural trimmed asvar skipped_msg %}
+                The following {{ snippet_plural_name }} have child nodes and will not be deleted:
+            {% endblocktrans %}
+        {% endif %}
+        <p>{{ skipped_msg }}</p>
+        <ul>
+            {% for item in items_with_children %}
+                <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+    {{ block.super }}
+{% endblock items_with_no_access %}

@@ -7,3 +7,4 @@ class WagtailTreebeardConfig(AppConfig):
 
     def ready(self) -> None:
         from wagtail_treebeard import checks  # noqa: F401
+        from wagtail_treebeard import wagtail_hooks  # noqa: F401

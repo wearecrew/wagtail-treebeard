@@ -20,7 +20,12 @@ from django.utils.text import capfirst
 from django.utils.translation import gettext_lazy as _
 from django.views import View
 from django.views.generic import FormView, TemplateView
-from wagtail.admin.ui.tables import Column, Table, TitleColumn
+from wagtail.admin.ui.tables import (
+    BulkActionsCheckboxColumn,
+    Column,
+    Table,
+    TitleColumn,
+)
 from wagtail.admin.views.generic.base import WagtailAdminTemplateMixin
 from wagtail.admin.widgets.button import Button, HeaderButton
 from wagtail.log_actions import log
@@ -891,6 +896,7 @@ class TreebeardIndexBrowseMixin:
         context.update(
             {
                 "is_browse_mode": self.is_browse_mode,
+                "show_bulk_actions": not self.is_browse_mode,
                 "browse_parent": self.browse_parent,
                 "browse_ancestor_links": [
                     {
@@ -1010,8 +1016,10 @@ class IndexView(TreebeardIndexBrowseMixin, TreebeardViewMixin, snippet_views.Ind
                     index_explore_url_name=self.index_explore_url_name,
                 ),
             ]
-        # Skip bulk-actions checkbox; bulk delete would bypass per-node delete rules.
-        return super(snippet_views.IndexView, self).columns
+        return [
+            BulkActionsCheckboxColumn("bulk_actions", obj_type="snippet"),
+            *super(snippet_views.IndexView, self).columns[1:],
+        ]
 
     def get_list_more_buttons(self, instance: models.Model) -> list:
         buttons = super().get_list_more_buttons(instance)

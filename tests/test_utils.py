@@ -38,7 +38,9 @@ class BreadcrumbAncestorQuerysetTests(TestCase):
     def test_breadcrumb_title_only_field_names_none_when_unset(self) -> None:
         self.assertIsNone(breadcrumb_title_only_field_names(TesterLockedNode))
 
-    def test_breadcrumb_title_only_field_names_includes_pk_and_mp_metadata(self) -> None:
+    def test_breadcrumb_title_only_field_names_includes_pk_and_mp_metadata(
+        self,
+    ) -> None:
         self.assertEqual(
             breadcrumb_title_only_field_names(TreeNode),
             ("id", "path", "depth", "numchild", "name"),

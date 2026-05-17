@@ -3,8 +3,8 @@ Wagtail snippet admin helpers for django-treebeard MP_Node (materialised-path) m
 
 Stock snippets are flat CRUD; :class:`WagtailTreebeardSnippetViewSet` adds parent-picked create, move, child
 reordering (using Wagtail 7+ snippet reorder / ``w-orderable`` support, omitted when ``MP_Node.node_order_by`` is
-set), and safe delete UX. Wagtail 6.x and earlier are not supported. Snippet bulk delete is disabled (no bulk-actions column, no bulk-actions
-footer template).
+set), and safe delete UX. Wagtail 6.x and earlier are not supported. Bulk delete skips nodes with
+children and reports them as warnings (see :class:`~wagtail_treebeard.bulk_actions.delete.TreebeardDeleteBulkAction`).
 
 Models must inherit :class:`~wagtail_treebeard.models.TreebeardMixin` (with ``MP_Node``).
 """
@@ -141,7 +141,7 @@ class WagtailTreebeardSnippetViewSet(snippet_views.SnippetViewSet):
         return common
 
     def get_index_template(self) -> list[str]:
-        """Prefer a snippet index variant without the bulk-actions footer (see ``wagtail_treebeard/index.html``)."""
+        """Treebeard index template hides bulk actions in explore browse mode."""
         return [
             "wagtail_treebeard/index.html",
             *super().get_index_template(),
