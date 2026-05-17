@@ -2,33 +2,44 @@
 
 Thank you for contributing to wagtail-treebeard. Tooling and CI follow the [Wagtail package maintenance guidelines](https://github.com/wagtail/wagtail/blob/main/docs/contributing/package_guidelines.md) and common patterns from the [cookiecutter-wagtail-package](https://github.com/wagtail/cookiecutter-wagtail-package) template (nightly `main`, tox matrix, pre-commit, trusted publishing).
 
+For architecture, invariants, and agent-oriented notes, see [AGENTS.md](AGENTS.md).
+
 ## Local setup
 
+Install [just](https://just.systems/man/en/packages.html) (task runner), then:
+
 ```bash
-git clone https://github.com/torchbox/wagtail-treebeard.git
+git clone https://github.com/wearecrew/wagtail-treebeard.git
 cd wagtail-treebeard
 python -m pip install -U flit tox pre-commit
 pre-commit install
-make build
-make test
+just build
+just test
 ```
 
 The interactive test project (superuser `admin` / `changeme`):
 
 ```bash
-make interactive
+just interactive
 # or: tox -e interactive
 ```
 
+Open http://localhost:8020/admin/ after the server starts.
+
 ## Common commands
 
+Run `just` (or `just --list`) to see all recipes:
+
 ```bash
-make help           # list tasks
-make lint           # pre-commit on all files
-make test           # one representative tox env
-make test-ci        # full tox matrix (release-style)
-make test-future    # Wagtail main branch
-make coverage       # combine .coverage.* from tox
+just                # list recipes
+just lint           # pre-commit on all files
+just test           # one representative tox env
+just test-one tests.test_views.TreebeardAdminViewTests  # focused run
+just test-ci        # full tox matrix (release-style)
+just test-future    # Wagtail main branch
+just coverage       # combine .coverage.* from tox
+just migrate        # sync DB after switching branches
+just shell          # Django shell for the test project
 ```
 
 ## Tests
@@ -38,13 +49,19 @@ Tests live under `tests/` and run via Django’s test runner inside `tests/manag
 Run everything locally:
 
 ```bash
-make test-ci
+just test-ci
 ```
 
 Run a single environment, for example:
 
 ```bash
 tox -e py3.13-django5.2-wagtail74
+```
+
+If migrations look stale after checking out another branch:
+
+```bash
+just migrate
 ```
 
 ## Continuous integration

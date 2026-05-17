@@ -36,11 +36,11 @@ testing = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/torchbox/wagtail-treebeard"
-Repository = "https://github.com/torchbox/wagtail-treebeard"
-Changelog = "https://github.com/torchbox/wagtail-treebeard/blob/main/CHANGELOG.md"
-Documentation = "https://github.com/torchbox/wagtail-treebeard#readme"
-Issues = "https://github.com/torchbox/wagtail-treebeard/issues"
+Homepage = "https://github.com/wearecrew/wagtail-treebeard"
+Repository = "https://github.com/wearecrew/wagtail-treebeard"
+Changelog = "https://github.com/wearecrew/wagtail-treebeard/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/wearecrew/wagtail-treebeard#readme"
+Issues = "https://github.com/wearecrew/wagtail-treebeard/issues"
 
 [build-system]
 requires = ["flit_core >=3.2,<4"]
