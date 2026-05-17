@@ -5,14 +5,13 @@
 
 An add-on for managing treebeard `MP_Node`-based snippet models in Wagtail.
 
-Requires **Wagtail 6.0+** (child reordering relies on snippet listing reorder support added in Wagtail 6).
+Requires **Wagtail 7.0+** (snippet reorder and related admin APIs used for child reordering).
 
 ## Supported versions
 
 - Python 3.11, 3.12, 3.13, 3.14
 - Django 4.2, 5.0, 5.2, 6.0 (see [Wagtail’s compatibility table](https://docs.wagtail.org/en/stable/releases/upgrading.html#compatible-django-python-versions) for each Wagtail release)
-- **Minimum** Wagtail 6.0 (snippet reorder); **LTS** Wagtail 7 ([7.0 LTS](https://docs.wagtail.org/en/stable/releases/7.0.html), [7.4 LTS](https://docs.wagtail.org/en/stable/releases/7.4.html) — see the [release index](https://docs.wagtail.org/en/stable/releases/index.html))
-- CI also exercises Wagtail 6.3 as a representative 6.x release
+- **Minimum** Wagtail 7.0; **LTS** [7.4](https://docs.wagtail.org/en/stable/releases/7.4.html) (see the [release index](https://docs.wagtail.org/en/stable/releases/index.html))
 
 ## Installation
 
@@ -267,7 +266,7 @@ tox --installpkg ./dist/*.whl
 Run a single environment:
 
 ```bash
-tox -e py3.12-django4.2-wagtail6.3-sqlite
+tox -e py3.12-django4.2-wagtail7.4-sqlite
 tox -e py3.13-django5.2-wagtail7.4-sqlite
 ```
 

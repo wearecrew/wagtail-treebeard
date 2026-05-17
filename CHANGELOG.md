@@ -8,5 +8,5 @@
 
 ### Changed
 
-- Require Wagtail 6.0+ (snippet reorder support used for child reordering). Wagtail 5.x is not supported.
-- CI tests against Wagtail 6.3 (6.x compatibility) and Wagtail 7.4 LTS.
+- Require Wagtail 7.0+ (snippet reorder and related admin APIs). Wagtail 6.x and 5.x are not supported.
+- CI tests against Wagtail 7.4 LTS across supported Django versions.

@@ -22,14 +22,13 @@ classifiers = [
     "Framework :: Django :: 5.2",
     "Framework :: Django :: 6.0",
     "Framework :: Wagtail",
-    "Framework :: Wagtail :: 6",
     "Framework :: Wagtail :: 7",
 ]
 dynamic = ["version"]
 requires-python = ">=3.11"
 dependencies = [
     "Django>=4.2",
-    "Wagtail>=6.0,<8",
+    "Wagtail>=7.0,<8",
     "django-treebeard>=4.7",
 ]
 
