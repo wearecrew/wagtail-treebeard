@@ -136,6 +136,17 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Index child")
 
+    def test_index_browse_explore_link_uses_table_base_url(self):
+        root = TreeNode.add_root(name="Browse root")
+        root.add_child(name="Browse child")
+        response = self.client.get(snippet_url(TreeNode, "list"))
+        self.assertEqual(response.status_code, 200)
+        explore_url = (
+            f"{snippet_url(TreeNode, 'list')}?{INDEX_PARENT_PK_QUERY_PARAM}={root.pk}"
+        )
+        self.assertContains(response, explore_url)
+        self.assertContains(response, "Explore children of")
+
     def test_index_search_lists_matching_nodes(self):
         TreeNode.add_root(name="Findable")
         url = snippet_url(TreeNode, "list")

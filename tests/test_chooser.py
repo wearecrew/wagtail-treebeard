@@ -1,3 +1,4 @@
+from django.contrib.admin.utils import quote
 from django.contrib.auth.models import Permission, User
 from django.test import TestCase
 from django.urls import reverse
@@ -8,9 +9,20 @@ from wagtail_treebeard.choosers import ChooserMode
 from wagtail_treebeard.choosers.viewsets import ChooserViewSet
 
 
+def chooser_viewset(model: type[TreeNode] = TreeNode):
+    return model.snippet_viewset.chooser_viewset
+
+
 def chooser_results_url(model: type[TreeNode] = TreeNode) -> str:
-    viewset = model.snippet_viewset.chooser_viewset
-    return reverse(viewset.get_url_name("choose_results"))
+    return reverse(chooser_viewset(model).get_url_name("choose_results"))
+
+
+def chooser_choose_url(model: type[TreeNode] = TreeNode) -> str:
+    return reverse(chooser_viewset(model).get_url_name("choose"))
+
+
+def chooser_chosen_url(model: type[TreeNode], pk: object) -> str:
+    return reverse(chooser_viewset(model).get_url_name("chosen"), args=[quote(pk)])
 
 
 class CanChooseRootTests(WagtailTestUtils, TestCase):
@@ -161,3 +173,47 @@ class ChooserBrowseAndSearchTests(WagtailTestUtils, TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Browse root")
+
+
+class ChooserViewIntegrationTests(WagtailTestUtils, TestCase):
+    """Smoke tests for treebeard chooser modal and chosen endpoints."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.superuser = User.objects.create_superuser(
+            "chooser_admin", "chooser_admin@example.com", "password"
+        )
+        cls.root = TreeNode.add_root(name="Chooser root")
+        cls.child = cls.root.add_child(name="Chooser child")
+
+    def setUp(self):
+        self.client.force_login(self.superuser)
+
+    def test_choose_modal_view_loads(self):
+        response = self.client.get(chooser_choose_url())
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "wagtail_treebeard/chooser/chooser.html")
+
+    def test_browse_navigate_link_for_node_with_children(self):
+        response = self.client.get(chooser_results_url())
+        self.assertEqual(response.status_code, 200)
+        navigate_url = f"{chooser_results_url()}?parent_pk={self.root.pk}"
+        self.assertContains(response, navigate_url)
+        self.assertContains(response, f'data-parent-pk="{self.root.pk}"')
+
+    def test_parent_for_create_lists_choose_action_for_valid_parent(self):
+        response = self.client.get(
+            chooser_results_url(),
+            {"chooser_mode": ChooserMode.PARENT_FOR_CREATE},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Chooser root")
+        self.assertContains(response, "data-chooser-modal-choice")
+
+    def test_chosen_view_returns_modal_response(self):
+        response = self.client.get(
+            chooser_chosen_url(TreeNode, self.root.pk),
+            {"chooser_mode": ChooserMode.CHOOSE},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Chooser root")

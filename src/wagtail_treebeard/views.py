@@ -707,6 +707,12 @@ class WagtailTreebeardExploreNavigateColumn(Column):
 
     cell_template_name = "wagtail_treebeard/cells/explore_navigate_cell.html"
 
+    def __init__(
+        self, *args: Any, add_child_url_name: str | None = None, **kwargs: Any
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.add_child_url_name = add_child_url_name
+
     def get_cell_context_data(self, instance, parent_context):
         context = super().get_cell_context_data(instance, parent_context)
         request = parent_context["request"]
@@ -714,12 +720,15 @@ class WagtailTreebeardExploreNavigateColumn(Column):
         context["node_perms"] = perms
         context["admin_title"] = admin_display_title(instance)
         if instance.numchild > 0:
-            base_url = parent_context["index_url"].split("?")[0]
-            context["explore_url"] = index_url_with_parent_pk(base_url, instance.pk)
-        add_child_url_name = parent_context.get("add_child_url_name")
-        if add_child_url_name and perms.can_add_child():
+            table = parent_context["table"]
+            base_url = getattr(table, "base_url", None)
+            if base_url:
+                context["explore_url"] = index_url_with_parent_pk(
+                    base_url.split("?")[0], instance.pk
+                )
+        if self.add_child_url_name and perms.can_add_child():
             context["add_child_url"] = reverse(
-                add_child_url_name, args=[quote(instance.pk)]
+                self.add_child_url_name, args=[quote(instance.pk)]
             )
         return context
 
@@ -889,7 +898,10 @@ class IndexView(TreebeardIndexBrowseMixin, TreebeardViewMixin, snippet_views.Ind
             return [
                 self._get_title_column("get_admin_display_title"),
                 WagtailTreebeardExploreNavigateColumn(
-                    "navigate", label="", width="10%"
+                    "navigate",
+                    label="",
+                    width="10%",
+                    add_child_url_name=self.add_child_url_name,
                 ),
             ]
         # Skip bulk-actions checkbox; bulk delete would bypass per-node delete rules.

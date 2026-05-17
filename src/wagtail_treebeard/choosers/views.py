@@ -14,7 +14,11 @@ from django.urls import reverse
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 from wagtail.admin.ui.tables import Column, Table
-from wagtail.admin.views.generic.chooser import ChooseResultsViewMixin, ChooseViewMixin
+from wagtail.admin.views.generic.chooser import (
+    ChooseResultsViewMixin,
+    ChooseViewMixin,
+    CreationFormMixin,
+)
 from wagtail.snippets.views.chooser import BaseSnippetChooseView
 
 from wagtail_treebeard.utils import admin_display_title
@@ -259,7 +263,9 @@ class NavigateColumn(Column):
         return context
 
 
-class ChooseView(ChooseResultsMixin, ChooseViewMixin, BaseSnippetChooseView):
+class ChooseView(
+    ChooseResultsMixin, ChooseViewMixin, CreationFormMixin, BaseSnippetChooseView
+):
     template_name = "wagtail_treebeard/chooser/chooser.html"
     preserve_url_parameters = list(PRESERVED_CHOOSER_PARAMS)
 
