@@ -32,10 +32,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - python: "3.11"
-            label: ""
-            toxenv: ""
-            experimental: false
           - python: "3.12"
             label: ""
             toxenv: ""
@@ -73,7 +69,7 @@ jobs:
           if [ -n "$TOXENV" ]; then
             tox -e "$TOXENV"
           else
-            tox run -f "py$(echo '${{ matrix.python }}' | tr -d .)" --installpkg ./dist/*.whl
+            tox run -f "py${{ matrix.python }}" --installpkg ./dist/*.whl
           fi
 
       - name: Upload coverage data
