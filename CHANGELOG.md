@@ -6,7 +6,7 @@
 
 - Initial release of wagtail-treebeard snippet admin for django-treebeard `MP_Node` models.
 - Root-level reorder admin UI and reorder permission helpers on the policy.
-- `justfile`, [AGENTS.md](AGENTS.md), `CONTRIBUTING.md`, and nightly CI against Wagtail `main` (Wagtail add-on package conventions).
+- `justfile`, [AGENTS.md](AGENTS.md), `CONTRIBUTING.md`, **uv** dev environment (`just sync`, `uv.lock`), and nightly CI against Wagtail `main` (Wagtail add-on package conventions).
 
 ### Changed
 

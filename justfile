@@ -1,8 +1,15 @@
 # wagtail-treebeard development commands.
-# Install: https://just.systems/man/en/packages.html — then run `just` to list recipes.
+# Install: https://just.systems/man/en/packages.html and https://docs.astral.sh/uv/getting-started/installation/
+
+# PYTHONPATH for tests/manage.py (matches tox testenv).
+export PYTHONPATH := "tests:."
 
 default:
     @just --list
+
+# Create or update .venv with uv (package + dev tools). Point your editor at .venv/bin/python.
+sync:
+    uv sync
 
 # Build a wheel (used by tox and CI).
 build:
@@ -36,13 +43,19 @@ coverage:
 interactive:
     tox -e interactive
 
-# Sync the test DB after switching branches.
-migrate:
-    tox exec -e py3.13-django5.2-wagtail74 -- python tests/manage.py migrate --run-syncdb
+# Run the test project via uv (after `just sync`); admin / changeme.
+run:
+    uv run python tests/manage.py migrate --run-syncdb
+    uv run python tests/manage.py shell -c "from django.contrib.auth.models import User; (not User.objects.filter(username='admin').exists()) and User.objects.create_superuser('admin', 'super@example.com', 'changeme')"
+    uv run python tests/manage.py runserver 0.0.0.0:8020
 
-# Django shell for the test project.
+# Sync the test DB after switching branches (uses uv venv).
+migrate:
+    uv run python tests/manage.py migrate --run-syncdb
+
+# Django shell for the test project (uses uv venv).
 shell:
-    tox exec -e py3.13-django5.2-wagtail74 -- python tests/manage.py shell
+    uv run python tests/manage.py shell
 
 # Remove Python cache files.
 clean-pyc:

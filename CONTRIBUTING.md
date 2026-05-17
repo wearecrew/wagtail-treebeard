@@ -6,25 +6,30 @@ For architecture, invariants, and agent-oriented notes, see [AGENTS.md](AGENTS.m
 
 ## Local setup
 
-Install [just](https://just.systems/man/en/packages.html) (task runner), then:
+Install [just](https://just.systems/man/en/packages.html) and [uv](https://docs.astral.sh/uv/getting-started/installation/), then:
 
 ```bash
 git clone https://github.com/wearecrew/wagtail-treebeard.git
 cd wagtail-treebeard
-python -m pip install -U flit tox pre-commit
+just sync              # .venv with package (editable), Wagtail, and dev tools
 pre-commit install
-just build
 just test
 ```
 
-The interactive test project (superuser `admin` / `changeme`):
+### Editor / IDE
+
+After `just sync`, select **`.venv/bin/python`** as the interpreter (see [`.vscode/settings.json.example`](.vscode/settings.json.example) for Pylance `extraPaths`).
+
+`uv` gives you import resolution and go-to-definition for Wagtail and this package. **CI still uses tox** for the full version matrix.
+
+### Running the test project
+
+Superuser `admin` / `changeme`:
 
 ```bash
-just interactive
-# or: tox -e interactive
+just run             # migrate + runserver on http://localhost:8020/admin/ (uv venv)
+# or: just interactive  # same app via tox
 ```
-
-Open http://localhost:8020/admin/ after the server starts.
 
 ## Common commands
 
@@ -32,14 +37,16 @@ Run `just` (or `just --list`) to see all recipes:
 
 ```bash
 just                # list recipes
+just sync           # create/update .venv (uv)
 just lint           # pre-commit on all files
 just test           # one representative tox env
 just test-one tests.test_views.TreebeardAdminViewTests  # focused run
 just test-ci        # full tox matrix (release-style)
 just test-future    # Wagtail main branch
 just coverage       # combine .coverage.* from tox
-just migrate        # sync DB after switching branches
-just shell          # Django shell for the test project
+just run            # test project runserver (uv)
+just migrate        # sync DB (uv)
+just shell          # Django shell (uv)
 ```
 
 ## Tests

@@ -56,17 +56,19 @@ Repository: https://github.com/wearecrew/wagtail-treebeard
 
 ## Development
 
-Install [just](https://just.systems/man/en/packages.html), `flit`, `tox`, `pre-commit` (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+Install [just](https://just.systems/man/en/packages.html) and [uv](https://docs.astral.sh/uv/). See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
-just                  # list recipes
-just test             # single tox env (fast feedback)
+just sync             # .venv: editable package + Wagtail + dev tools (for the editor)
+just test             # single tox env (fast feedback; authoritative for CI)
 just test-one tests.test_views.TreebeardAdminViewTests.test_foo
 just test-ci          # full matrix before PR
 just lint
-just interactive      # http://localhost:8020/admin/ — admin / changeme
-just migrate          # after switching git branches
+just run              # test project via uv — http://localhost:8020/admin/ (admin / changeme)
+just migrate          # after switching git branches (uv)
 ```
+
+**Editor:** after `just sync`, use `.venv/bin/python` and `python.analysis.extraPaths`: `["src", "tests"]` (see `.vscode/settings.json.example`). Tox envs are not used by the language server.
 
 Tests use Django’s runner via tox, not `pytest` from the repo root:
 

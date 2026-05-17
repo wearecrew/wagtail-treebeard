@@ -35,6 +35,18 @@ testing = [
     "dj-database-url>=2.1.0,<3.0",
 ]
 
+[dependency-groups]
+dev = [
+    "coverage>=7.0,<8.0",
+    "dj-database-url>=2.1.0,<3.0",
+    "flit>=3.2,<4",
+    "pre-commit",
+    "tox>=4.11",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
 [project.urls]
 Homepage = "https://github.com/wearecrew/wagtail-treebeard"
 Repository = "https://github.com/wearecrew/wagtail-treebeard"

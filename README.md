@@ -292,12 +292,12 @@ Reordering only updates **path order** under a fixed parent (or among roots). It
 
 ## Development
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) (architecture and local workflow). Install [just](https://just.systems/man/en/packages.html), then:
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) (architecture and local workflow). Install [just](https://just.systems/man/en/packages.html) and [uv](https://docs.astral.sh/uv/), then:
 
 ```bash
-python -Im pip install -U flit tox pre-commit
+just sync             # .venv for your editor + local tooling
 pre-commit install
-just test-ci          # full matrix
+just test-ci          # full matrix (tox)
 just test-future      # Wagtail main
 ```
 
@@ -311,7 +311,8 @@ tox -e py3.13-django6.0-wagtail74
 Interactive test project (superuser `admin` / `changeme`):
 
 ```bash
-just interactive
+just run              # uv venv
+# or: just interactive  # tox
 ```
 
 ## License
