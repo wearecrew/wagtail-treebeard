@@ -1,8 +1,8 @@
 # wagtail-treebeard
 
-[![Lint](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/lint.yml/badge.svg)](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/lint.yml)
-[![Test](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/test.yml/badge.svg)](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/test.yml)
-[![Nightly Wagtail main](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/nightly.yml/badge.svg)](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/nightly.yml)
+[![Lint](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/lint.yml/badge.svg?branch=main&event=push)](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/lint.yml?query=branch%3Amain+event%3Apush)
+[![Test](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/test.yml/badge.svg?branch=main&event=push)](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/test.yml?query=branch%3Amain+event%3Apush)
+[![Nightly Wagtail main](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/nightly.yml/badge.svg?branch=main)](https://github.com/wearecrew/wagtail-treebeard/actions/workflows/nightly.yml?query=branch%3Amain)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 An add-on for managing treebeard `MP_Node`-based snippet models in Wagtail.
