@@ -243,17 +243,17 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         self.assertContains(response, "Child B")
         self.assertContains(response, "Child C")
 
-    def test_reorder_root_entries_allowed_with_multiple_roots(self):
+    def test_reorder_root_items_allowed_with_multiple_roots(self):
         TreeNode.add_root(name="Root one")
         TreeNode.add_root(name="Root two")
-        url = snippet_url(TreeNode, "reorder_root_entries")
+        url = snippet_url(TreeNode, "reorder_root_items")
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Root one")
 
-    def test_reorder_root_entries_redirects_when_single_root(self):
+    def test_reorder_root_items_redirects_when_single_root(self):
         TreeNode.add_root(name="Lonely")
-        url = snippet_url(TreeNode, "reorder_root_entries")
+        url = snippet_url(TreeNode, "reorder_root_items")
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], snippet_url(TreeNode, "list"))
@@ -262,8 +262,8 @@ class TreebeardAdminViewTests(WagtailTestUtils, TestCase):
         TreeNode.add_root(name="Root A")
         TreeNode.add_root(name="Root B")
         response = self.client.get(snippet_url(TreeNode, "list"))
-        self.assertContains(response, snippet_url(TreeNode, "reorder_root_entries"))
-        self.assertContains(response, "Reorder root entries")
+        self.assertContains(response, snippet_url(TreeNode, "reorder_root_items"))
+        self.assertContains(response, "Reorder root items")
 
     def test_index_shows_reorder_header_when_browsing_parent(self):
         parent = TreeNode.add_root(name="Reorder header parent")

@@ -91,7 +91,7 @@ class TreebeardPermissionPolicyMixin:
         return False
 
     def user_can_reorder_roots(self, user: AbstractBaseUser) -> bool:
-        """Whether root-level entries may be drag-reordered in the admin."""
+        """Whether root items may be drag-reordered in the admin."""
         return False
 
 

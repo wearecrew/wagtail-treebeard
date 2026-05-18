@@ -269,9 +269,9 @@ Reordering is **not** the same as **move**: it only rewrites sibling `path` valu
 
 There are two admin flows. They share the same underlying policy helper (`user_can_reorder_siblings_at_level`) but pass different arguments and surface in different places on the index.
 
-| | **Reorder children** (under a parent) | **Reorder root entries** (top level) |
+| | **Reorder children** (under a parent) | **Reorder root items** (top level) |
 |---|----------------------------------------|--------------------------------------|
-| **Where it appears** | “Reorder children” on each index row when you are browsing that node’s children (or from search if the row is shown) | “Reorder root entries” in the index **header** when you are at the root listing (`browse_parent` is unset) |
+| **Where it appears** | “Reorder children” on each index row when you are browsing that node’s children (or from search if the row is shown) | “Reorder root items” in the index **header** when you are at the root listing (`browse_parent` is unset) |
 | **Policy: may open reorder UI?** | `user_can_reorder_siblings_at_level(user, parent=that_node)` | `user_can_reorder_roots(user)` — same check with `parent=None` |
 | **Per-row index check** | `parent.permissions_for_user(user).can_reorder_children()` (tester → policy with `parent=self.node`) | N/A (header uses policy only) |
 | **Reorder screen lists** | All direct children of the parent (`changeable_siblings_queryset`) | All root nodes |

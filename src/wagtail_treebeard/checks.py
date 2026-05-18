@@ -38,7 +38,7 @@ def _breadcrumb_title_fields_errors(model: type) -> list[Error]:
         if not isinstance(lookup, str):
             errors.append(
                 Error(
-                    f"{label}: breadcrumb_title_fields entries must be strings, "
+                    f"{label}: breadcrumb_title_fields Items must be strings, "
                     f"not {type(lookup).__name__}.",
                     id="wagtail_treebeard.E002",
                     obj=model,

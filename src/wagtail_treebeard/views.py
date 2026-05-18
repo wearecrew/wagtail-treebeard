@@ -565,18 +565,16 @@ class ReorderChildRowView(TreebeardViewMixin, View):
         return JsonResponse({"success": True})
 
 
-class ReorderRootEntriesView(
-    TreebeardViewMixin, WagtailAdminTemplateMixin, TemplateView
-):
+class ReorderRootItemsView(TreebeardViewMixin, WagtailAdminTemplateMixin, TemplateView):
     """
-    Full listing of root-level entries with drag-and-drop reordering.
+    Full listing of root items with drag-and-drop reordering.
 
     Uses the same ``w-orderable`` Stimulus contract as :class:`ReorderChildrenView`; POST requests
     go to :class:`ReorderRootEntryRowView`.
     """
 
-    template_name = "wagtail_treebeard/reorder_root_entries.html"
-    page_title = _("Reorder root entries")
+    template_name = "wagtail_treebeard/reorder_root_items.html"
+    page_title = _("Reorder root items")
 
     reorder_root_entry_row_url_name: str | None = None
     index_url_name: str | None = None
@@ -593,7 +591,7 @@ class ReorderRootEntriesView(
         if not policy.user_has_permission(request.user, "change"):
             raise PermissionDenied
         if not policy.user_can_reorder_roots(request.user):
-            messages.error(request, _("There are not enough root entries to reorder."))
+            messages.error(request, _("There are not enough root items to reorder."))
             return redirect(index_url)
         return super().get(request, *args, **kwargs)
 
@@ -932,7 +930,7 @@ class IndexView(TreebeardIndexBrowseMixin, TreebeardViewMixin, snippet_views.Ind
     add_child_url_name: str | None = None
     move_url_name: str | None = None
     reorder_children_url_name: str | None = None
-    reorder_root_entries_url_name: str | None = None
+    reorder_root_items_url_name: str | None = None
 
     def _treebeard_title_column(self) -> TitleColumn:
         column_class = self._get_title_column_class(TitleColumn)
@@ -959,13 +957,13 @@ class IndexView(TreebeardIndexBrowseMixin, TreebeardViewMixin, snippet_views.Ind
         buttons: list[HeaderButton] = []
         if (
             self.browse_parent is None
-            and self.reorder_root_entries_url_name
+            and self.reorder_root_items_url_name
             and self.permission_policy.user_can_reorder_roots(self.request.user)
         ):
             buttons.append(
                 HeaderButton(
-                    _("Reorder root entries"),
-                    url=reverse(self.reorder_root_entries_url_name),
+                    _("Reorder root items"),
+                    url=reverse(self.reorder_root_items_url_name),
                     icon_name="list-ul",
                 )
             )

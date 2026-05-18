@@ -64,7 +64,7 @@ class TreebeardSnippetViewSetIntegrationTests(WagtailTestUtils, TestCase):
             snippet_url(TreeNode, "edit", parent.pk),
             snippet_url(TreeNode, "move", child.pk),
             snippet_url(TreeNode, "reorder_children", parent.pk),
-            snippet_url(TreeNode, "reorder_root_entries"),
+            snippet_url(TreeNode, "reorder_root_items"),
         ]
         for url in urls:
             with self.subTest(url=url):
