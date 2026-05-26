@@ -13,13 +13,14 @@ from wagtail.snippets.views.chooser import (
 )
 
 from .constants import PRESERVED_CHOOSER_PARAMS
-from .views import ChooseResultsView, ChooseView
+from .views import ChooseResultsView, ChooseView, ChooserCreateView
 from .widgets import TreebeardModelChooser
 
 
 class ChooserViewSet(SnippetChooserViewSet):
     choose_view_class = ChooseView
     choose_results_view_class = ChooseResultsView
+    create_view_class = ChooserCreateView
     chosen_view_class = SnippetChosenView
     chosen_multiple_view_class = SnippetChosenMultipleView
     preserve_url_parameters = list(PRESERVED_CHOOSER_PARAMS)
@@ -30,6 +31,8 @@ class ChooserViewSet(SnippetChooserViewSet):
             "choose_explore_results_url_name": self.get_url_name(
                 "choose_explore_results"
             ),
+            "create_child_url_name": self.get_url_name("create_child"),
+            "choose_url_name": self.get_url_name("choose"),
         }
 
     def get_urlpatterns(self):
@@ -39,6 +42,11 @@ class ChooserViewSet(SnippetChooserViewSet):
                 f"explore/<{conv}:parent_pk>/results/",
                 self.choose_results_view,
                 name="choose_explore_results",
+            ),
+            path(
+                f"create/<{conv}:parent_pk>/",
+                self.create_view,
+                name="create_child",
             ),
         ]
 

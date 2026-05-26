@@ -12,7 +12,14 @@ from .constants import ChooserMode
 
 
 class TreebeardModelChooser(AdminSnippetChooser):
-    """Snippet chooser with hierarchical browse and optional search (see :class:`~wagtail_treebeard.chooser.TreebeardChooserViewSet`)."""
+    """
+    Snippet chooser with hierarchical browse and optional search.
+
+    When :attr:`~wagtail_treebeard.viewsets.WagtailTreebeardSnippetViewSet.chooser_creation_form_class`
+    is set on the snippet viewset, this widget alone may show the chooser "Create" tab
+    and browse "Add …" actions. Parent and move pickers use dedicated subclasses that
+    disable inline creation.
+    """
 
     def __init__(
         self,
@@ -53,11 +60,13 @@ class TreebeardModelChooser(AdminSnippetChooser):
 
 class TreebeardParentChooser(TreebeardModelChooser):
     """
-    Pick a parent for create.
+    Pick a parent for create (no inline chooser creation).
 
     Set ``show_choose_root_option=True`` to show “Create as root (no parent)” in the modal
-    when the user has ``add_root``. Off by default so pages that already offer root
-    creation (e.g. :class:`~wagtail_treebeard.views.ConfirmAddPositionView`) stay unambiguous.
+    when the user has ``add_root``. That button only clears the parent field on the outer
+    form; it does not open the chooser create flow. Off by default so pages that already
+    offer root creation (e.g. :class:`~wagtail_treebeard.views.ConfirmAddPositionView`)
+    stay unambiguous.
     """
 
     def __init__(
@@ -69,7 +78,7 @@ class TreebeardParentChooser(TreebeardModelChooser):
 
 class TreebeardMoveParentChooser(TreebeardModelChooser):
     """
-    Pick a new parent when moving an existing node.
+    Pick a new parent when moving an existing node (no inline chooser creation).
 
     Browse shows the tree (minus the node being moved); each row uses ``can_move_to``. Search
     lists ``instances_user_can_move_to`` (the same rules, fetched once as a queryset).

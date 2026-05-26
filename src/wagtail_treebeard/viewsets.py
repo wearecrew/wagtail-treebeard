@@ -20,6 +20,7 @@ from django.urls import path
 from treebeard.mp_tree import MP_Node
 from wagtail.snippets.views import snippets as snippet_views
 
+from wagtail_treebeard.creation import TreebeardCreationFormMixin
 from wagtail_treebeard.choosers import ChooserViewSet
 from wagtail_treebeard.forms import WagtailTreebeardAdminModelForm
 from wagtail_treebeard.models import TreebeardMixin
@@ -41,7 +42,9 @@ from wagtail_treebeard.views import (
 )
 
 
-class WagtailTreebeardSnippetViewSet(snippet_views.SnippetViewSet):
+class WagtailTreebeardSnippetViewSet(
+    TreebeardCreationFormMixin, snippet_views.SnippetViewSet
+):
     """
     Snippet admin for :class:`~wagtail_treebeard.models.TreebeardMixin` models:
     parent-aware create URLs, per-row move/add-child, child reordering, and delete blocked when
@@ -86,18 +89,11 @@ class WagtailTreebeardSnippetViewSet(snippet_views.SnippetViewSet):
         """
         return get_breadcrumb_ancestor_queryset(node)
 
-    def get_exclude_form_fields(self):
-        exclude = list(super().get_exclude_form_fields() or [])
-        for field_name in ("path", "depth", "numchild"):
-            if field_name not in exclude:
-                exclude.append(field_name)
-        return exclude
-
     def get_form_class(self, *, for_update=False):
         if self._edit_handler:
             return self._edit_handler.get_form_class()
         fields = self.get_form_fields()
-        exclude = self.get_exclude_form_fields()
+        exclude = self.get_treebeard_exclude_form_fields()
         if fields is None and exclude is None:
             raise ImproperlyConfigured(
                 f"{self.__class__.__name__} must specify form_fields or exclude_form_fields."
@@ -108,6 +104,20 @@ class WagtailTreebeardSnippetViewSet(snippet_views.SnippetViewSet):
             formfield_callback=self.formfield_for_dbfield,
             fields=fields,
             exclude=exclude,
+        )
+
+    def get_chooser_viewset_kwargs(self) -> dict[str, Any]:
+        return self.get_chooser_creation_form_fields()
+
+    @property
+    def chooser_viewset(self):
+        return self.chooser_viewset_class(
+            self.get_chooser_admin_url_namespace(),
+            model=self.model,
+            url_prefix=self.get_chooser_admin_base_path(),
+            icon=self.icon,
+            per_page=self.chooser_per_page,
+            **self.get_chooser_viewset_kwargs(),
         )
 
     def get_common_view_kwargs(self, **kwargs: Any) -> dict[str, Any]:

@@ -1,0 +1,14 @@
+{% load i18n %}
+<nav class="listing-filter" aria-label="{% trans 'Tree location' %}">
+    <p class="w-help-text">
+        <a href="{{ browse_results_url }}" class="{{ link_class }}" data-parent-pk="">{% trans "Root" %}</a>
+        {% for link in browse_ancestor_links %}
+            <span aria-hidden="true"> › </span>
+            <a href="{{ link.url }}" class="{{ link_class }}" data-parent-pk="{{ link.pk }}">{{ link.label }}</a>
+        {% endfor %}
+        {% if browse_parent %}
+            <span aria-hidden="true"> › </span>
+            <strong>{{ browse_parent_title }}</strong>
+        {% endif %}
+    </p>
+</nav>

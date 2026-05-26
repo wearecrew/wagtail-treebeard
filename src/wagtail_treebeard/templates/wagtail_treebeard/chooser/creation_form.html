@@ -1,0 +1,23 @@
+{% load i18n wagtailadmin_tags %}
+{% include "wagtailadmin/shared/non_field_errors.html" with form=creation_form %}
+<form data-chooser-modal-creation-form action="{{ create_action_url }}" method="POST" {% if creation_form.is_multipart %}enctype="multipart/form-data"{% endif %} novalidate>
+    {% csrf_token %}
+    {% for field in creation_form.hidden_fields %}{{ field }}{% endfor %}
+
+    <ul class="fields">
+        {% for field in creation_form.visible_fields %}
+            <li>{% formattedfield field %}</li>
+        {% endfor %}
+    </ul>
+    <footer class="footer">
+        {% if create_action_clicked_label %}
+            <button type="submit" class="button button-longrunning" data-clicked-text="{{ create_action_clicked_label }}">
+                {% icon name="spinner" %}
+                {{ create_action_label }}
+            </button>
+        {% else %}
+            <button type="submit" class="button">{{ create_action_label }}</button>
+        {% endif %}
+        <a href="{{ cancel_url }}" class="button button-secondary treebeard-snippet-chooser-browse-link">{% trans "Cancel" %}</a>
+    </footer>
+</form>

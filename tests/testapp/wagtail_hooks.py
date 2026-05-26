@@ -1,5 +1,6 @@
 from wagtail.snippets.models import register_snippet
 
+from wagtail_treebeard.forms import WagtailTreebeardAdminModelForm
 from wagtail_treebeard.viewsets import WagtailTreebeardSnippetViewSet
 
 from .models import (
@@ -9,6 +10,12 @@ from .models import (
     TesterLockedNode,
     TreeNode,
 )
+
+
+class TreeNodeChooserCreationForm(WagtailTreebeardAdminModelForm):
+    class Meta:
+        model = TreeNode
+        fields = ["name"]
 
 
 class TreeNodeViewSet(WagtailTreebeardSnippetViewSet):

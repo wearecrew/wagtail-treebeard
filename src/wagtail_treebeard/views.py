@@ -78,6 +78,86 @@ class TreebeardViewMixin:
         return admin_display_title(instance)
 
 
+class TreebeardCreateMixin:
+    """
+    Shared MP_Node create behaviour for admin and chooser views.
+
+    Subclasses implement the usual Wagtail hooks: ``get_form_class``,
+    ``get_form_kwargs``, and ``save_instance``. Chooser create views delegate
+    from ``get_creation_form_*`` / ``save_form`` to these methods.
+    """
+
+    parent: models.Model | None = None
+
+    def get_treebeard_model(self) -> type[models.Model]:
+        model = getattr(self, "model", None)
+        if model is not None:
+            return model
+        model_class = getattr(self, "model_class", None)
+        if model_class is not None:
+            return model_class
+        raise ImproperlyConfigured(
+            f"{self.__class__.__name__} requires a model or model_class."
+        )
+
+    def resolve_create_parent(self, **kwargs: Any) -> models.Model | None:
+        parent_pk = kwargs.get("parent_pk")
+        if parent_pk is None:
+            return None
+        return get_object_or_404(
+            self.get_treebeard_model(), pk=unquote(str(parent_pk))
+        )
+
+    def check_create_permissions(self, user: Any, parent: models.Model | None) -> None:
+        policy = self.get_treebeard_model().permission_policy
+        if parent is None:
+            if not policy.user_can_add_root(user):
+                raise PermissionDenied(_("You cannot add a root-level node."))
+        elif not parent.permissions_for_user(user).can_add_child():
+            raise PermissionDenied(_("You cannot add a child under this node."))
+
+    def setup_create_parent(self, request, *args: Any, **kwargs: Any) -> None:
+        self.parent = self.resolve_create_parent(**kwargs)
+        self.check_create_permissions(request.user, self.parent)
+
+    def get_treebeard_form_class(self):
+        form_class = getattr(self, "form_class", None)
+        if form_class is not None:
+            return form_class
+        creation_form_class = getattr(self, "creation_form_class", None)
+        if creation_form_class is not None:
+            return creation_form_class
+        return self.get_treebeard_model().snippet_viewset.get_form_class()
+
+    def get_treebeard_form_kwargs(self) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {}
+        form_class = self.get_treebeard_form_class()
+        from wagtail_treebeard.forms import WagtailTreebeardAdminModelForm
+
+        if issubclass(form_class, WagtailTreebeardAdminModelForm):
+            kwargs["parent"] = self.parent
+        return kwargs
+
+    def save_treebeard_instance(self) -> models.Model:
+        instance = self.form.save(commit=False)
+        model = self.get_treebeard_model()
+
+        if self.parent is None:
+            self.object = model.add_root(instance=instance)
+        else:
+            self.object = self.parent.add_child(instance=instance)
+
+        self.form.save_m2m()
+        sort_order_field = getattr(self, "sort_order_field", None)
+        if (
+            sort_order_field
+            and getattr(self.object, sort_order_field, None) is None
+        ):
+            set_max_order(self.object, sort_order_field)
+        log(instance=self.object, action="wagtail.create", content_changed=True)
+        return self.object
+
+
 class ConfirmAddPositionView(TreebeardViewMixin, WagtailAdminTemplateMixin, FormView):
     """Step one of create: pick a parent (or root), then redirect to the real create URL."""
 
@@ -146,20 +226,14 @@ class ConfirmAddPositionView(TreebeardViewMixin, WagtailAdminTemplateMixin, Form
         ]
 
 
-class CreateView(TreebeardViewMixin, snippet_views.CreateView):
+class CreateView(
+    TreebeardCreateMixin, TreebeardViewMixin, snippet_views.CreateView
+):
     """
     Create under an MP parent (``parent_pk`` in URL) or as a root (``add/root/`` with no parent).
 
     When creating under a parent, breadcrumbs show the full ancestor chain (each linking to explore).
     """
-
-    parent: models.Model | None = None
-
-    def get_form_class(self):
-        form_class = getattr(self, "form_class", None)
-        if form_class is not None:
-            return form_class
-        return self.require_model().snippet_viewset.get_form_class()
 
     index_explore_url_name: str | None = None
 
@@ -175,43 +249,18 @@ class CreateView(TreebeardViewMixin, snippet_views.CreateView):
 
     def setup(self, request, *args: Any, **kwargs: Any) -> None:
         super().setup(request, *args, **kwargs)
-        self.parent = None
-        if "parent_pk" in self.kwargs:
-            self.parent = get_object_or_404(
-                self.model, pk=unquote(str(self.kwargs["parent_pk"]))
-            )
-        if self.parent is None:
-            if not self.permission_policy.user_can_add_root(request.user):
-                raise PermissionDenied(_("You cannot add a root-level node."))
-        elif (
-            not self.permission_policy.instances_user_can_add_children_to(request.user)
-            .filter(pk=self.parent.pk)
-            .exists()
-        ):
-            raise PermissionDenied(_("You cannot add a child under this node."))
+        self.setup_create_parent(request, *args, **kwargs)
+
+    def get_form_class(self):
+        return self.get_treebeard_form_class()
 
     def get_form_kwargs(self) -> dict[str, Any]:
         kwargs = super().get_form_kwargs()
-        if issubclass(self.get_form_class(), WagtailTreebeardAdminModelForm):
-            kwargs["parent"] = self.parent
+        kwargs.update(self.get_treebeard_form_kwargs())
         return kwargs
 
     def save_instance(self) -> models.Model:
-        instance = self.form.save(commit=False)
-
-        if self.parent is None:
-            self.object = self.model.add_root(instance=instance)
-        else:
-            self.object = self.parent.add_child(instance=instance)
-
-        self.form.save_m2m()
-        if (
-            self.sort_order_field
-            and getattr(self.object, self.sort_order_field, None) is None
-        ):
-            set_max_order(self.object, self.sort_order_field)
-        log(instance=self.object, action="wagtail.create", content_changed=True)
-        return self.object
+        return self.save_treebeard_instance()
 
 
 class EditView(TreebeardViewMixin, snippet_views.EditView):

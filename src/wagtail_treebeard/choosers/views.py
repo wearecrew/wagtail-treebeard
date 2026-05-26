@@ -7,19 +7,26 @@ from urllib.parse import urlencode
 
 from django.contrib.admin.utils import quote, unquote
 from django.contrib.auth.models import AbstractBaseUser
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, PermissionDenied
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
+from django.views import View
+from wagtail.admin.modal_workflow import render_modal_workflow
 from wagtail.admin.ui.tables import Column, Table
 from wagtail.admin.views.generic.chooser import (
     ChooseResultsViewMixin,
     ChooseViewMixin,
+    ChosenResponseMixin,
+    CreateViewMixin,
     CreationFormMixin,
+    PreserveURLParametersMixin,
 )
 from wagtail.snippets.views.chooser import BaseSnippetChooseView
+
+from wagtail_treebeard.views import TreebeardCreateMixin
 
 from wagtail_treebeard.utils import (
     admin_display_title,
@@ -33,18 +40,114 @@ if TYPE_CHECKING:
     from django.db import models
 
 
-class ChooseResultsMixin:
+class TreebeardChooserParamsMixin:
+    """Shared chooser query parameters (mode, preserved GET params)."""
+
+    def get_chooser_mode(self) -> ChooserMode:
+        raw = self.request.GET.get("chooser_mode")
+        if not raw:
+            return ChooserMode.CHOOSE
+        try:
+            return ChooserMode(raw)
+        except ValueError:
+            return ChooserMode.CHOOSE
+
+    def get_preserved_get_params(self) -> dict[str, str]:
+        return {
+            param: self.request.GET[param]
+            for param in PRESERVED_CHOOSER_PARAMS
+            if param in self.request.GET
+        }
+
+    def chooser_creation_enabled(self) -> bool:
+        """Viewset opt-in only (``chooser_creation_form_class``); not a per-user check."""
+        snippet_viewset = self.require_model_class().snippet_viewset
+        return getattr(snippet_viewset, "chooser_creation_form_class", None) is not None
+
+    def user_can_create_at_parent(
+        self,
+        user: AbstractBaseUser,
+        parent: models.Model | None,
+    ) -> bool:
+        """Whether ``user`` may create at this tree level (policy / per-node tester)."""
+        policy = self.require_model_class().permission_policy
+        if parent is None:
+            return policy.user_can_add_root(user)
+        return parent.permissions_for_user(user).can_add_child()
+
+    def require_model_class(self) -> type[models.Model]:
+        if self.model_class is None:
+            raise ImproperlyConfigured(f"{self.__class__.__name__} requires a model.")
+        return self.model_class
+
+    def chooser_inline_creation_allowed(self) -> bool:
+        """
+        Whether inline creation is allowed for this chooser session.
+
+        Only :class:`~wagtail_treebeard.choosers.widgets.TreebeardModelChooser`
+        uses ``ChooserMode.CHOOSE``; parent and move pickers use other modes and never
+        allow the create tab or browse "Add …" actions.
+        """
+        if not self.chooser_creation_enabled():
+            return False
+        return self.get_chooser_mode() is ChooserMode.CHOOSE
+
+    def chooser_user_can_inline_create(
+        self, *, parent: models.Model | None = None
+    ) -> bool:
+        if not self.chooser_inline_creation_allowed():
+            return False
+        if parent is None:
+            parent = getattr(self, "browse_parent", None)
+        return self.user_can_create_at_parent(self.request.user, parent)
+
+    def reverse_chooser_create_url(
+        self, *, parent: models.Model | None = None
+    ) -> str:
+        if parent is None:
+            url_name = self.create_url_name
+            args: tuple[int | str, ...] = ()
+        else:
+            url_name = self.create_child_url_name
+            args = (quote(parent.pk),)
+        if not url_name:
+            raise ImproperlyConfigured(
+                f"{self.__class__.__name__} is missing a create URL name."
+            )
+        return self.append_preserved_url_parameters(reverse(url_name, args=args))
+
+    def get_choose_browse_url(self, *, parent_pk: int | str | None = None) -> str:
+        """Full chooser modal URL restoring browse at ``parent_pk`` (root when omitted)."""
+        if not self.choose_url_name:
+            raise ImproperlyConfigured(
+                f"{self.__class__.__name__} is missing choose_url_name."
+            )
+        params = dict(self.get_preserved_get_params())
+        if parent_pk is not None:
+            params["parent_pk"] = str(parent_pk)
+        base = reverse(self.choose_url_name)
+        if params:
+            return f"{base}?{urlencode(params)}"
+        return base
+
+
+class ChooseResultsMixin(TreebeardChooserParamsMixin):
     """Browse MP_Node children by default; flat search when the filter form is searching."""
 
     results_template_name = "wagtail_treebeard/chooser/results.html"
     preserve_url_parameters = list(PRESERVED_CHOOSER_PARAMS)
     browse_parent: models.Model | None = None
     choose_explore_results_url_name: str | None = None
+    choose_url_name: str | None = None
+    create_url_name: str | None = None
+    create_child_url_name: str | None = None
 
     def setup(self, request, *args: Any, **kwargs: Any) -> None:
         super().setup(request, *args, **kwargs)
         self.browse_parent = None
         parent_pk = kwargs.get("parent_pk")
+        if parent_pk is None:
+            parent_pk = self.request.GET.get("parent_pk")
         if parent_pk:
             self.browse_parent = get_object_or_404(
                 self.require_model_class(), pk=unquote(str(parent_pk))
@@ -55,12 +158,7 @@ class ChooseResultsMixin:
         return super().get(request)
 
     def can_create(self) -> bool:
-        return False
-
-    def require_model_class(self) -> type[models.Model]:
-        if self.model_class is None:
-            raise ImproperlyConfigured(f"{self.__class__.__name__} requires a model.")
-        return self.model_class
+        return self.chooser_user_can_inline_create()
 
     def can_choose_root_for_user(self, user: AbstractBaseUser) -> bool:
         return self.require_model_class().permission_policy.user_can_add_root(user)
@@ -78,14 +176,20 @@ class ChooseResultsMixin:
             return False
         return self.can_choose_root_for_user(self.request.user)
 
-    def get_chooser_mode(self) -> ChooserMode:
-        raw = self.request.GET.get("chooser_mode")
-        if not raw:
-            return ChooserMode.CHOOSE
-        try:
-            return ChooserMode(raw)
-        except ValueError:
-            return ChooserMode.CHOOSE
+    def _create_actions_allowed_in_browse(self) -> bool:
+        return self.chooser_inline_creation_allowed() and self.is_browse_mode
+
+    def can_show_create_root_action(self) -> bool:
+        if not self._create_actions_allowed_in_browse() or self.browse_parent is not None:
+            return False
+        return self.can_choose_root_for_user(self.request.user)
+
+    def can_show_create_child_action(self) -> bool:
+        if not self._create_actions_allowed_in_browse() or self.browse_parent is None:
+            return False
+        return self.browse_parent.permissions_for_user(
+            self.request.user
+        ).can_add_child()
 
     def get_move_instance(self) -> models.Model | None:
         move_pk = self.request.GET.get("move_instance_pk")
@@ -201,13 +305,6 @@ class ChooseResultsMixin:
             return f"{base}?{urlencode(params)}"
         return base
 
-    def get_preserved_get_params(self) -> dict[str, str]:
-        return {
-            param: self.request.GET[param]
-            for param in PRESERVED_CHOOSER_PARAMS
-            if param in self.request.GET
-        }
-
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
         context["preserved_get_params"] = self.get_preserved_get_params()
@@ -239,6 +336,20 @@ class ChooseResultsMixin:
                 "chooser_mode": self.get_chooser_mode(),
             }
         )
+        show_create_root = self.can_show_create_root_action()
+        show_create_child = self.can_show_create_child_action()
+        context.update(
+            {
+                "can_show_create_root_action": show_create_root,
+                "can_show_create_child_action": show_create_child,
+            }
+        )
+        if show_create_root:
+            context["create_root_url"] = self.reverse_chooser_create_url()
+        if show_create_child and self.browse_parent is not None:
+            context["create_child_url"] = self.reverse_chooser_create_url(
+                parent=self.browse_parent
+            )
         if self.is_browse_mode:
             rows = list(self.results.object_list)
             if self.browse_parent is not None:
@@ -291,13 +402,6 @@ class ChooseView(
     template_name = "wagtail_treebeard/chooser/chooser.html"
     preserve_url_parameters = list(PRESERVED_CHOOSER_PARAMS)
 
-    def get_preserved_get_params(self) -> dict[str, str]:
-        return {
-            param: self.request.GET[param]
-            for param in PRESERVED_CHOOSER_PARAMS
-            if param in self.request.GET
-        }
-
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
         context["preserved_get_params"] = self.get_preserved_get_params()
@@ -308,3 +412,122 @@ class ChooseResultsView(
     ChooseResultsMixin, ChooseResultsViewMixin, BaseSnippetChooseView
 ):
     pass
+
+
+class ChooserCreateView(
+    TreebeardCreateMixin,
+    TreebeardChooserParamsMixin,
+    CreateViewMixin,
+    CreationFormMixin,
+    ChosenResponseMixin,
+    PreserveURLParametersMixin,
+    View,
+):
+    """Create a tree node inside the snippet chooser modal (opt-in via viewset)."""
+
+    response_data_title_key = "string"
+    preserve_url_parameters = list(PRESERVED_CHOOSER_PARAMS)
+    template_name = "wagtail_treebeard/chooser/create_step.html"
+    creation_form_template_name = "wagtail_treebeard/chooser/creation_form.html"
+    create_url_name: str | None = None
+    create_child_url_name: str | None = None
+    choose_url_name: str | None = None
+    header_icon = "folder"
+    sort_order_field = None
+
+    def get_treebeard_model(self) -> type[models.Model]:
+        return self.require_model_class()
+
+    def dispatch(self, request, *args: Any, **kwargs: Any):
+        if not self.chooser_inline_creation_allowed():
+            raise PermissionDenied
+        parent = self.resolve_create_parent(**kwargs)
+        if not self.user_can_create_at_parent(request.user, parent):
+            raise PermissionDenied
+        return super(CreateViewMixin, self).dispatch(request, *args, **kwargs)
+
+    def setup(self, request, *args: Any, **kwargs: Any) -> None:
+        super().setup(request, *args, **kwargs)
+        self.setup_create_parent(request, *args, **kwargs)
+
+    def post(self, request, *args: Any, **kwargs: Any):
+        return super().post(request)
+
+    def get_form_class(self):
+        return self.get_treebeard_form_class()
+
+    def get_creation_form_class(self):
+        return self.get_form_class()
+
+    def get_form_kwargs(self) -> dict[str, Any]:
+        return self.get_treebeard_form_kwargs()
+
+    def get_creation_form_kwargs(self) -> dict[str, Any]:
+        kwargs = super().get_creation_form_kwargs()
+        kwargs.update(self.get_treebeard_form_kwargs())
+        return kwargs
+
+    def save_instance(self) -> models.Model:
+        return self.save_treebeard_instance()
+
+    def save_form(self, form):
+        self.form = form
+        return self.save_instance()
+
+    def get_create_url(self) -> str:
+        return self.reverse_chooser_create_url(parent=self.parent)
+
+    def get_create_page_title(self) -> str:
+        if self.parent is None:
+            return str(_("Add root level item"))
+        return str(_("Add child"))
+
+    def get_create_step_breadcrumb_context(self) -> dict[str, Any]:
+        browse_parent = self.parent
+        ancestors = (
+            mp_node_breadcrumb_ancestor_list(browse_parent)
+            if browse_parent is not None
+            else []
+        )
+        cancel_parent_pk = browse_parent.pk if browse_parent is not None else None
+        return {
+            "browse_parent": browse_parent,
+            "browse_parent_title": (
+                admin_display_title(browse_parent)
+                if browse_parent is not None
+                else ""
+            ),
+            "browse_ancestor_links": [
+                {
+                    "label": admin_display_title(node),
+                    "url": self.get_choose_browse_url(parent_pk=node.pk),
+                    "pk": node.pk,
+                }
+                for node in ancestors
+            ],
+            "browse_results_url": self.get_choose_browse_url(),
+            "cancel_url": self.get_choose_browse_url(parent_pk=cancel_parent_pk),
+        }
+
+    def get(self, request, *args: Any, **kwargs: Any):
+        self.form = self.get_creation_form()
+        return self.render_create_step()
+
+    def get_reshow_creation_form_response(self):
+        return self.render_create_step()
+
+    def render_create_step(self):
+        context = {
+            "view": self,
+            "page_title": self.get_create_page_title(),
+            "header_icon": self.header_icon,
+        }
+        context.update(self.get_create_step_breadcrumb_context())
+        context.update(self.get_creation_form_context_data(self.form))
+        return render_modal_workflow(
+            self.request,
+            self.template_name,
+            None,
+            context,
+            json_data={"step": "choose"},
+        )

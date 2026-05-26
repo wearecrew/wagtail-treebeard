@@ -1,0 +1,8 @@
+{% load i18n wagtailadmin_tags %}
+{% include "wagtailadmin/shared/header.html" with title=page_title merged=1 icon=header_icon %}
+
+{% include "wagtail_treebeard/chooser/includes/browse_breadcrumbs.html" with link_class="treebeard-snippet-chooser-browse-link" %}
+
+<div id="tab-create">
+    {% include view.creation_form_template_name %}
+</div>

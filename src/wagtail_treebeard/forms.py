@@ -11,11 +11,6 @@ if TYPE_CHECKING:
 
 from wagtail.admin.forms.models import WagtailAdminModelForm
 
-from wagtail_treebeard.choosers.widgets import (
-    TreebeardMoveParentChooser,
-    TreebeardParentChooser,
-)
-
 
 class WagtailTreebeardAdminModelForm(WagtailAdminModelForm):
     """
@@ -39,6 +34,8 @@ class ConfirmAddPositionForm(forms.Form):
         parent_queryset: models.QuerySet,
         **kwargs: Any,
     ) -> None:
+        from wagtail_treebeard.choosers.widgets import TreebeardParentChooser
+
         super().__init__(*args, **kwargs)
         self.fields["parent"] = forms.ModelChoiceField(
             label=_("Choose a parent"),
@@ -57,6 +54,8 @@ class MoveForm(forms.Form):
         move_instance_pk: int | str,
         **kwargs: Any,
     ) -> None:
+        from wagtail_treebeard.choosers.widgets import TreebeardMoveParentChooser
+
         super().__init__(*args, **kwargs)
         self.fields["new_parent"] = forms.ModelChoiceField(
             label=_("Choose a new parent"),

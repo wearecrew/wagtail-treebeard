@@ -1,21 +1,23 @@
 {% load i18n %}
-<nav class="listing-filter" aria-label="{% trans 'Tree location' %}">
-    <p class="w-help-text">
-        <a href="{{ browse_results_url }}" class="treebeard-snippet-chooser-navigate" data-parent-pk="">{% trans "Root" %}</a>
-        {% for link in browse_ancestor_links %}
-            <span aria-hidden="true"> › </span>
-            <a href="{{ link.url }}" class="treebeard-snippet-chooser-navigate" data-parent-pk="{{ link.pk }}">{{ link.label }}</a>
-        {% endfor %}
-        {% if browse_parent %}
-            <span aria-hidden="true"> › </span>
-            <strong>{{ browse_parent_title }}</strong>
-        {% endif %}
-    </p>
-</nav>
+{% include "wagtail_treebeard/chooser/includes/browse_breadcrumbs.html" with link_class="treebeard-snippet-chooser-navigate" %}
 {% if can_choose_root and not browse_parent %}
     <p>
         <button type="button" class="button button-small button-secondary treebeard-snippet-chooser-clear-parent">
             {% trans "Create as root (no parent)" %}
         </button>
+    </p>
+{% endif %}
+{% if can_show_create_root_action %}
+    <p>
+        <a href="{{ create_root_url }}" class="button button-small button-secondary treebeard-snippet-chooser-create-link">
+            {% trans "Add root level item" %}
+        </a>
+    </p>
+{% endif %}
+{% if can_show_create_child_action %}
+    <p>
+        <a href="{{ create_child_url }}" class="button button-small button-secondary treebeard-snippet-chooser-create-link">
+            {% trans "Add child" %}
+        </a>
     </p>
 {% endif %}
